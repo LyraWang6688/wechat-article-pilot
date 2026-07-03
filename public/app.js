@@ -351,9 +351,9 @@ function syncWizardHeight() {
     return;
   }
   const navHeight = document.querySelector(".wizard-nav")?.getBoundingClientRect().height || 0;
-  const shellGap = 14;
-  const shellHeight = Math.max(560, Math.round(progressPanel.getBoundingClientRect().height));
-  const panelHeight = Math.max(420, shellHeight - Math.round(navHeight) - shellGap);
+  const shellGap = 10;
+  const shellHeight = Math.round(progressPanel.getBoundingClientRect().height);
+  const panelHeight = Math.max(280, shellHeight - Math.round(navHeight) - shellGap);
   wizardShell.style.setProperty("--wizard-shell-height", `${shellHeight}px`);
   wizardShell.style.setProperty("--wizard-panel-height", `${panelHeight}px`);
 }
