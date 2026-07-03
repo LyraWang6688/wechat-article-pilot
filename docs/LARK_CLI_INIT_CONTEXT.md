@@ -300,10 +300,13 @@ Workflow 接收人可使用固定用户 OpenID：
 {
   "value_type": "user",
   "value": {
-    "id": "ou_xxx"
+    "id": "ou_xxx",
+    "name": "张三"
   }
 }
 ```
+
+注意：实际飞书工作流 UI 需要 `value.name` 才能稳定展示具体人员名称；只传 `id` 虽然可能创建成功，但 UI 中可能显示为空接收人。
 
 方案 B：通知记录修改人。
 

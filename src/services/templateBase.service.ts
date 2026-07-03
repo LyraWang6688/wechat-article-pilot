@@ -243,7 +243,8 @@ export class TemplateBaseService {
       tableId: input.tableId,
       tableName,
       webhookUrl: input.webhookUrl,
-      notifyUserOpenId
+      notifyUserOpenId,
+      notifyUserName: currentUser.user.userName
     });
 
     logger.info("template_wechat_draft_workflows_start", {
@@ -331,7 +332,8 @@ export class TemplateBaseService {
       tableId: input.tableId,
       tableName,
       webhookUrl: input.webhookUrl,
-      notifyUserOpenId
+      notifyUserOpenId,
+      notifyUserName: currentUser.user.userName
     });
     const workflow = input.workflowType === "sync" ? workflowInputs[0] : workflowInputs[1];
 
@@ -341,7 +343,14 @@ export class TemplateBaseService {
       tableName,
       webhookUrl: input.webhookUrl,
       workflowType: input.workflowType,
-      title: workflow.title
+      title: workflow.title,
+      receiver:
+        input.workflowType === "notify"
+          ? {
+              openId: notifyUserOpenId,
+              userName: currentUser.user.userName
+            }
+          : undefined
     });
 
     const created = await this.larkBase.createWorkflow({
@@ -482,6 +491,7 @@ function buildWechatDraftWorkflowInputs(input: {
   tableName: string;
   webhookUrl: string;
   notifyUserOpenId: string;
+  notifyUserName?: string;
 }) {
   const clientTokenPrefix = `${Date.now()}`;
   return [
@@ -571,7 +581,15 @@ function buildWechatDraftWorkflowInputs(input: {
           title: "发送同步结果",
           next: null,
           data: {
-            receiver: [{ value_type: "user", value: { id: input.notifyUserOpenId } }],
+            receiver: [
+              {
+                value_type: "user",
+                value: {
+                  id: input.notifyUserOpenId,
+                  name: input.notifyUserName || "当前授权用户"
+                }
+              }
+            ],
             send_to_everyone: false,
             title: [{ value_type: "text", value: "公众号草稿同步结果" }],
             content: [

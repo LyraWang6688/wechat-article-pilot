@@ -323,7 +323,7 @@ lark-cli base +workflow-enable --base-token "<base_token>" --workflow-id "<workf
 
 - workflow 创建时，`condition_list` 对单选字段是否必须用 `value_type=option`，还是文本字段可用 `text`。
 - `HTTPClientAction.raw_body` 中 `$.step_trigger.recordId` 的实际输出是否稳定。
-- `LarkMessageAction.receiver` 使用固定授权用户 OpenID 是否符合实际 workflow schema。
+- `LarkMessageAction.receiver` 使用固定授权用户 `{ id: openId, name: userName }`，实测只传 `id` 会导致 UI 中不稳定展示具体人员。
 - 后端回写状态后是否会触发第二个工作流，以及是否需要避免循环触发。
 
 ## 7. 仍需确认的信息
