@@ -8,42 +8,59 @@
   </head>
   <body>
     <main class="layout">
+      <section class="setup-overview" aria-label="初始化总览">
+        <div>
+          <p class="eyebrow">Setup Wizard</p>
+          <h1>系统初始化配置</h1>
+          <p>按步骤完成飞书应用、多维表格和微信公众号信息配置，系统会自动推进可自动化的部分。</p>
+        </div>
+        <div class="overview-status">
+          <span id="overviewStatus" class="status-badge active">配置中</span>
+          <strong><span id="overviewPercent">0</span>%</strong>
+          <small><span id="overviewCompletedCount">0</span> / 5 已完成 · 还有 <span id="overviewRemainingCount">5</span> 项</small>
+          <div class="progress-track" aria-hidden="true">
+            <span id="overviewBar" style="width: 0%"></span>
+          </div>
+        </div>
+      </section>
+
       <aside class="progress-panel" aria-label="初始化进度">
         <p class="eyebrow">初始化进度</p>
-        <h2>当前进展</h2>
+        <h2>配置进度器</h2>
+        <p class="progress-summary">蓝色表示当前处理，绿色表示已完成，橙色表示需要处理。</p>
         <ol class="progress-list">
           <li id="progressCreateApp" class="progress-item pending">
             <span class="progress-dot"></span>
             <div>
-              <strong>创建应用</strong>
+              <div class="step-row"><strong>连接飞书应用</strong><span class="status-badge step-badge">待配置</span></div>
               <small>创建一个新的飞书应用</small>
             </div>
           </li>
           <li id="progressAuth" class="progress-item pending">
             <span class="progress-dot"></span>
             <div>
-              <strong>用户授权</strong>
+              <div class="step-row"><strong>用户授权</strong><span class="status-badge step-badge">待配置</span></div>
               <small>允许系统完成后续自动化</small>
             </div>
           </li>
           <li id="progressTable" class="progress-item pending">
             <span class="progress-dot"></span>
             <div>
-              <strong>创建数据表</strong>
+              <div class="step-row"><strong>创建数据表</strong><span class="status-badge step-badge">待配置</span></div>
               <small>工作台和推送草稿表</small>
             </div>
           </li>
           <li id="progressWorkflow" class="progress-item pending">
             <span class="progress-dot"></span>
             <div>
-              <strong>创建工作流</strong>
+              <div class="step-row"><strong>创建工作流</strong><span class="status-badge step-badge">待配置</span></div>
               <small>同步请求和消息通知</small>
             </div>
           </li>
           <li id="progressWechat" class="progress-item pending">
             <span class="progress-dot"></span>
             <div>
-              <strong>微信信息</strong>
+              <div class="step-row"><strong>微信信息</strong><span class="status-badge step-badge">待配置</span></div>
               <small>AppID 和 AppSecret 预留</small>
             </div>
           </li>
@@ -74,13 +91,16 @@
             <h2>1. 飞书应用初始化</h2>
             <p>先创建新的飞书应用，再完成授权，系统会自动进入后续初始化。</p>
           </div>
+          <span class="status-badge active">推荐先完成</span>
         </div>
         <div class="todo-list">
-          <article class="todo-card">
+          <article class="todo-card recommended-card">
+            <span class="recommend-label">推荐方式</span>
             <div class="todo-title">
               <span id="createAppTodo" class="todo-dot pending"></span>
               <div>
                 <h3>创建新应用</h3>
+                <p>适合首次使用。系统会打开飞书引导链接，按页面提示完成创建即可。</p>
               </div>
             </div>
             <div class="actions todo-actions">
@@ -122,6 +142,7 @@
             <h2>2. 多维表格初始化</h2>
             <p>用户授权完成后，系统会自动创建多维表格、数据表和两条工作流。</p>
           </div>
+          <span class="status-badge pending">自动执行</span>
         </div>
         <div class="auto-panel">
           <strong>自动初始化进度</strong>
@@ -166,6 +187,7 @@
             <h2>3. 微信公众号信息</h2>
             <p>当前阶段先收集配置项，后续接入 access_token、永久素材和草稿接口。</p>
           </div>
+          <span class="status-badge pending">预留配置</span>
         </div>
         <div class="todo-list">
           <article class="todo-card">
@@ -179,6 +201,7 @@
             <label>
               微信 AppID
               <input id="wechatAppIdInput" placeholder="下一阶段使用" />
+              <small class="field-help">获取路径：微信公众平台 → 设置与开发 → 基本配置。</small>
             </label>
           </article>
           <article class="todo-card">
@@ -192,6 +215,7 @@
             <label>
               微信 AppSecret
               <input id="wechatSecretInput" type="password" placeholder="下一阶段仅后端保存" />
+              <small class="field-help">敏感凭证仅用于后端调用微信接口，页面不会明文展示。</small>
             </label>
           </article>
         </div>

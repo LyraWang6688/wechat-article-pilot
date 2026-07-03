@@ -16,6 +16,8 @@ const TODO_PROGRESS_MAP = {
   wechatSecretTodo: "progressWechat"
 };
 
+const PROGRESS_STEP_IDS = ["progressCreateApp", "progressAuth", "progressTable", "progressWorkflow", "progressWechat"];
+
 const P0_REQUIRED_USER_SCOPES = [
   "base:app:create",
   "base:table:read",
@@ -197,9 +199,11 @@ function setStepStatus(id, status) {
     return;
   }
   element.className = `progress-item ${status}`;
+  updateStatusBadge(element, status);
   const stored = loadProgressStatus();
   stored[id] = status;
   saveProgressStatus(stored);
+  updateProgressOverview();
 }
 
 function setTodoStatus(id, status) {
@@ -223,6 +227,57 @@ function setAutomationStepStatus(id, status) {
   const dot = element.querySelector(".todo-dot");
   if (dot) {
     dot.className = `todo-dot ${status}`;
+  }
+}
+
+function updateStatusBadge(container, status) {
+  const badge = container.querySelector(".step-badge");
+  if (!badge) {
+    return;
+  }
+  badge.className = `status-badge step-badge ${status}`;
+  badge.textContent = getStatusLabel(status);
+}
+
+function getStatusLabel(status) {
+  if (status === "done") {
+    return "已完成";
+  }
+  if (status === "active") {
+    return "配置中";
+  }
+  if (status === "warn") {
+    return "需处理";
+  }
+  return "待配置";
+}
+
+function updateProgressOverview() {
+  const statuses = PROGRESS_STEP_IDS.map((id) => {
+    const element = $(id);
+    return element?.classList.contains("done") ? "done" : element?.classList.contains("warn") ? "warn" : element?.classList.contains("active") ? "active" : "pending";
+  });
+  const doneCount = statuses.filter((status) => status === "done").length;
+  const warnCount = statuses.filter((status) => status === "warn").length;
+  const percent = Math.round((doneCount / PROGRESS_STEP_IDS.length) * 100);
+  const remaining = PROGRESS_STEP_IDS.length - doneCount;
+  const overviewStatus = $("overviewStatus");
+
+  if ($("overviewCompletedCount")) {
+    $("overviewCompletedCount").textContent = String(doneCount);
+  }
+  if ($("overviewRemainingCount")) {
+    $("overviewRemainingCount").textContent = String(remaining);
+  }
+  if ($("overviewPercent")) {
+    $("overviewPercent").textContent = String(percent);
+  }
+  if ($("overviewBar")) {
+    $("overviewBar").style.width = `${percent}%`;
+  }
+  if (overviewStatus) {
+    overviewStatus.className = `status-badge ${warnCount ? "warn" : doneCount === PROGRESS_STEP_IDS.length ? "done" : "active"}`;
+    overviewStatus.textContent = warnCount ? "需处理" : doneCount === PROGRESS_STEP_IDS.length ? "已完成" : "配置中";
   }
 }
 
@@ -444,11 +499,13 @@ function restoreProgress() {
     const element = $(id);
     if (element) {
       element.className = `progress-item ${status}`;
+      updateStatusBadge(element, status);
     }
   });
   setDeviceCode("");
   updateWorkspaceLink();
   updateWechatTodos();
+  updateProgressOverview();
 }
 
 function findDeepValue(value, keys) {
