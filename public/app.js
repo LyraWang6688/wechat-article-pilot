@@ -8,6 +8,7 @@ const DEFAULT_TABLE_NAME = "推送草稿表";
 let latestNoticeDetail = "";
 let isBitableInitializing = false;
 let configInitPollTimer = null;
+let currentWizardPanel = 0;
 
 const TODO_PROGRESS_MAP = {
   createAppTodo: "progressCreateApp",
@@ -17,6 +18,23 @@ const TODO_PROGRESS_MAP = {
 };
 
 const PROGRESS_STEP_IDS = ["progressCreateApp", "progressAuth", "progressTable", "progressWorkflow", "progressWechat"];
+const WIZARD_PANELS = [
+  {
+    title: "飞书应用初始化",
+    hint: "先完成创建新应用和用户授权",
+    progressIds: ["progressCreateApp", "progressAuth"]
+  },
+  {
+    title: "多维表格初始化",
+    hint: "系统会自动创建工作台、数据表和工作流",
+    progressIds: ["progressTable", "progressWorkflow"]
+  },
+  {
+    title: "微信公众号信息",
+    hint: "先预留公众号 AppID 和 AppSecret",
+    progressIds: ["progressWechat"]
+  }
+];
 
 const P0_REQUIRED_USER_SCOPES = [
   "base:app:create",
@@ -205,6 +223,7 @@ function setStepStatus(id, status) {
   stored[id] = status;
   saveProgressStatus(stored);
   updateProgressOverview();
+  updateWizardProgressHighlight();
 }
 
 function setTodoStatus(id, status) {
@@ -280,6 +299,63 @@ function updateProgressOverview() {
     overviewStatus.className = `status-badge ${warnCount ? "warn" : doneCount === PROGRESS_STEP_IDS.length ? "done" : "active"}`;
     overviewStatus.textContent = warnCount ? "需处理" : doneCount === PROGRESS_STEP_IDS.length ? "已完成" : "配置中";
   }
+}
+
+function setWizardPanel(index, options = {}) {
+  const nextIndex = Math.max(0, Math.min(WIZARD_PANELS.length - 1, index));
+  currentWizardPanel = nextIndex;
+  document.querySelectorAll("[data-wizard-panel]").forEach((panel) => {
+    panel.hidden = Number(panel.dataset.wizardPanel) !== nextIndex;
+  });
+  updateWizardNav();
+  updateWizardProgressHighlight();
+  syncWizardHeight();
+  if (options.scroll !== false) {
+    document.querySelector(".wizard-shell")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+
+function updateWizardNav() {
+  const panel = WIZARD_PANELS[currentWizardPanel];
+  const prevButton = $("wizardPrevBtn");
+  const nextButton = $("wizardNextBtn");
+  if ($("wizardStepLabel")) {
+    $("wizardStepLabel").textContent = `${currentWizardPanel + 1} / ${WIZARD_PANELS.length}`;
+  }
+  if ($("wizardPanelTitle")) {
+    $("wizardPanelTitle").textContent = panel.title;
+  }
+  if ($("wizardPanelHint")) {
+    $("wizardPanelHint").textContent = panel.hint;
+  }
+  if (prevButton) {
+    prevButton.disabled = currentWizardPanel === 0;
+  }
+  if (nextButton) {
+    nextButton.disabled = currentWizardPanel === WIZARD_PANELS.length - 1;
+  }
+}
+
+function updateWizardProgressHighlight() {
+  document.querySelectorAll(".progress-item").forEach((item) => item.classList.remove("current-panel"));
+  const panel = WIZARD_PANELS[currentWizardPanel];
+  panel.progressIds.forEach((id) => $(id)?.classList.add("current-panel"));
+}
+
+function syncWizardHeight() {
+  const progressPanel = document.querySelector(".progress-panel");
+  const wizardShell = document.querySelector(".wizard-shell");
+  if (!progressPanel || !wizardShell || window.matchMedia("(max-width: 760px)").matches) {
+    wizardShell?.style.removeProperty("--wizard-shell-height");
+    wizardShell?.style.removeProperty("--wizard-panel-height");
+    return;
+  }
+  const navHeight = document.querySelector(".wizard-nav")?.getBoundingClientRect().height || 0;
+  const shellGap = 14;
+  const shellHeight = Math.max(560, Math.round(progressPanel.getBoundingClientRect().height));
+  const panelHeight = Math.max(420, shellHeight - Math.round(navHeight) - shellGap);
+  wizardShell.style.setProperty("--wizard-shell-height", `${shellHeight}px`);
+  wizardShell.style.setProperty("--wizard-panel-height", `${panelHeight}px`);
 }
 
 function resetBitableAutomationSteps() {
@@ -388,6 +464,7 @@ async function runBitableInitialization() {
     return;
   }
   isBitableInitializing = true;
+  setWizardPanel(1);
   resetBitableAutomationSteps();
   setStepStatus("progressTable", "active");
   setStepStatus("progressWorkflow", "pending");
@@ -637,12 +714,27 @@ $("completeLoginBtn").addEventListener("click", async (event) => {
   );
   setTodoStatus("authTodo", payload ? "done" : "warn");
   if (payload) {
+    setWizardPanel(1);
     await runBitableInitialization();
   }
 });
 
 $("wechatAppIdInput").addEventListener("input", updateWechatTodos);
 $("wechatSecretInput").addEventListener("input", updateWechatTodos);
+
+$("wizardPrevBtn").addEventListener("click", () => setWizardPanel(currentWizardPanel - 1));
+$("wizardNextBtn").addEventListener("click", () => setWizardPanel(currentWizardPanel + 1));
+document.querySelectorAll("[data-wizard-target]").forEach((item) => {
+  const openTargetPanel = () => setWizardPanel(Number(item.dataset.wizardTarget || 0));
+  item.addEventListener("click", openTargetPanel);
+  item.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      openTargetPanel();
+    }
+  });
+});
+window.addEventListener("resize", syncWizardHeight);
 
 $("copyNoticeBtn").addEventListener("click", async (event) => {
   await navigator.clipboard.writeText(latestNoticeDetail);
@@ -659,3 +751,4 @@ $("clearNoticeBtn").addEventListener("click", () => {
 });
 
 restoreProgress();
+setWizardPanel(0, { scroll: false });

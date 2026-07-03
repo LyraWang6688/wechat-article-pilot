@@ -7,6 +7,8 @@
   --color-primary-hover: #1d4ed8;
   --color-primary-soft: #eff6ff;
   --color-primary-border: #bfdbfe;
+  --color-action: #315fba;
+  --color-action-hover: #294f9f;
   --color-success: #16a34a;
   --color-success-soft: #f0fdf4;
   --color-success-border: #bbf7d0;
@@ -151,6 +153,68 @@ h3 {
   min-width: 0;
 }
 
+.wizard-shell {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 14px;
+  min-width: 0;
+  min-height: var(--wizard-shell-height, auto);
+}
+
+.wizard-panel {
+  min-height: var(--wizard-panel-height, 560px);
+  overflow: auto;
+}
+
+.wizard-panel[hidden] {
+  display: none;
+}
+
+.wizard-nav {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 48px;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow);
+}
+
+.wizard-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 12px;
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-md);
+}
+
+.wizard-nav-center {
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+  min-width: 0;
+  text-align: center;
+}
+
+.wizard-nav-center strong {
+  color: var(--color-text-main);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
+  font-weight: var(--font-weight-semibold);
+}
+
+.wizard-nav-center small {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
+}
+
 .notice-panel {
   display: grid;
   gap: 16px;
@@ -185,18 +249,18 @@ h3 {
   justify-content: center;
   width: fit-content;
   margin-top: 4px;
-  padding: 11px 14px;
-  border-radius: 12px;
-  background: var(--primary);
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--color-action);
   color: #ffffff;
-  font-size: var(--font-size-base);
-  line-height: var(--line-height-base);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
   font-weight: var(--font-weight-semibold);
   text-decoration: none;
 }
 
 .notice-link:hover {
-  background: var(--primary-dark);
+  background: var(--color-action-hover);
 }
 
 .compact-link {
@@ -301,6 +365,15 @@ h3 {
     color 0.15s ease;
 }
 
+.progress-item[data-wizard-target] {
+  cursor: pointer;
+}
+
+.progress-item[data-wizard-target]:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.32);
+  outline-offset: 2px;
+}
+
 .progress-item:not(:last-child)::after {
   content: "";
   position: absolute;
@@ -361,6 +434,11 @@ h3 {
 .progress-item.active {
   background: var(--color-primary-soft);
   color: var(--color-primary-hover);
+}
+
+.progress-item.current-panel {
+  outline: 2px solid rgba(37, 99, 235, 0.18);
+  background: var(--color-primary-soft);
 }
 
 .progress-item.warn .progress-dot {
@@ -631,24 +709,23 @@ textarea {
 
 button {
   border: 0;
-  border-radius: 12px;
-  padding: 11px 16px;
-  background: var(--primary);
+  border-radius: 10px;
+  padding: 8px 13px;
+  background: var(--color-action);
   color: #ffffff;
   font: inherit;
-  font-size: var(--font-size-base);
-  line-height: var(--line-height-base);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
   font-weight: var(--font-weight-semibold);
   cursor: pointer;
   transition:
-    transform 0.15s ease,
     background 0.15s ease,
+    border-color 0.15s ease,
     opacity 0.15s ease;
 }
 
 button:hover {
-  background: var(--primary-dark);
-  transform: translateY(-1px);
+  background: var(--color-action-hover);
 }
 
 button:disabled {
@@ -668,6 +745,7 @@ button.secondary:hover {
 }
 
 button.danger {
+  border: 1px solid var(--color-danger-border);
   background: var(--color-danger-soft);
   color: var(--danger);
 }
@@ -744,6 +822,19 @@ pre {
 
   .progress-panel {
     position: static;
+  }
+
+  .wizard-panel {
+    min-height: auto;
+  }
+
+  .wizard-nav {
+    grid-template-columns: 38px minmax(0, 1fr) 38px;
+  }
+
+  .wizard-arrow {
+    width: 38px;
+    height: 38px;
   }
 
   .two,

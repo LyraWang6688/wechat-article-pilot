@@ -23,35 +23,35 @@
         </div>
         <p class="progress-summary">蓝色表示当前处理，绿色表示已完成，橙色表示需要处理。</p>
         <ol class="progress-list">
-          <li id="progressCreateApp" class="progress-item pending">
+          <li id="progressCreateApp" class="progress-item pending" data-wizard-target="0" tabindex="0">
             <span class="progress-dot"></span>
             <div>
               <div class="step-row"><strong>连接飞书应用</strong><span class="status-badge step-badge">待配置</span></div>
               <small>创建一个新的飞书应用</small>
             </div>
           </li>
-          <li id="progressAuth" class="progress-item pending">
+          <li id="progressAuth" class="progress-item pending" data-wizard-target="0" tabindex="0">
             <span class="progress-dot"></span>
             <div>
               <div class="step-row"><strong>用户授权</strong><span class="status-badge step-badge">待配置</span></div>
               <small>允许系统完成后续自动化</small>
             </div>
           </li>
-          <li id="progressTable" class="progress-item pending">
+          <li id="progressTable" class="progress-item pending" data-wizard-target="1" tabindex="0">
             <span class="progress-dot"></span>
             <div>
               <div class="step-row"><strong>创建数据表</strong><span class="status-badge step-badge">待配置</span></div>
               <small>工作台和推送草稿表</small>
             </div>
           </li>
-          <li id="progressWorkflow" class="progress-item pending">
+          <li id="progressWorkflow" class="progress-item pending" data-wizard-target="1" tabindex="0">
             <span class="progress-dot"></span>
             <div>
               <div class="step-row"><strong>创建工作流</strong><span class="status-badge step-badge">待配置</span></div>
               <small>同步请求和消息通知</small>
             </div>
           </li>
-          <li id="progressWechat" class="progress-item pending">
+          <li id="progressWechat" class="progress-item pending" data-wizard-target="2" tabindex="0">
             <span class="progress-dot"></span>
             <div>
               <div class="step-row"><strong>微信信息</strong><span class="status-badge step-badge">待配置</span></div>
@@ -79,7 +79,17 @@
         </div>
       </section>
 
-      <section class="card">
+      <div class="wizard-shell" aria-label="初始化配置向导">
+      <div class="wizard-nav" aria-label="板块切换">
+        <button id="wizardPrevBtn" class="secondary wizard-arrow" type="button" aria-label="上一个板块">←</button>
+        <div class="wizard-nav-center">
+          <span id="wizardStepLabel" class="status-badge active">1 / 3</span>
+          <strong id="wizardPanelTitle">飞书应用初始化</strong>
+          <small id="wizardPanelHint">先完成创建新应用和用户授权</small>
+        </div>
+        <button id="wizardNextBtn" class="secondary wizard-arrow" type="button" aria-label="下一个板块">→</button>
+      </div>
+      <section class="card wizard-panel" data-wizard-panel="0">
         <div class="card-header">
           <div>
             <h2>1. 飞书应用初始化</h2>
@@ -135,7 +145,7 @@
         </div>
       </section>
 
-      <section class="card">
+      <section class="card wizard-panel" data-wizard-panel="1" hidden>
         <div class="card-header">
           <div>
             <h2>2. 多维表格初始化</h2>
@@ -180,7 +190,7 @@
         </div>
       </section>
 
-      <section class="card">
+      <section class="card wizard-panel" data-wizard-panel="2" hidden>
         <div class="card-header">
           <div>
             <h2>3. 微信公众号信息</h2>
@@ -219,6 +229,7 @@
           </article>
         </div>
       </section>
+      </div>
 
       </div>
     </main>
