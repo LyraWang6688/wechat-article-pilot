@@ -27,6 +27,13 @@ type ConfigInitSession = {
   updatedAt: string;
 };
 
+type AuthLoginCompleteSession = {
+  sessionId: string;
+  process: LarkCliInteractiveProcess;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export const P0_REQUIRED_USER_SCOPES = [
   "base:app:create",
   "base:table:read",
@@ -46,6 +53,7 @@ export const P0_REQUIRED_USER_SCOPES = [
 
 export class LarkSharedService {
   private configInitSession?: ConfigInitSession;
+  private authLoginCompleteSession?: AuthLoginCompleteSession;
 
   constructor(private readonly runner: LarkCliRunner) {}
 
@@ -215,6 +223,72 @@ export class LarkSharedService {
     };
   }
 
+  startUserLoginCompletion(deviceCode: string) {
+    const currentSession = this.authLoginCompleteSession;
+    if (currentSession?.process.running) {
+      logger.info("lark_shared_auth_login_complete_reuse_running_session", {
+        sessionId: currentSession.sessionId,
+        callId: currentSession.process.callId
+      });
+      return this.buildAuthLoginCompleteSessionResult(currentSession);
+    }
+
+    logger.info("lark_shared_auth_login_complete_session_start", {
+      hasDeviceCode: Boolean(deviceCode)
+    });
+    const sessionId = createTraceId("auth_complete");
+    const now = new Date().toISOString();
+    const process = this.runner.startInteractive(["auth", "login", "--device-code", deviceCode, "--json"], {
+      timeoutMs: 5 * 60 * 1000,
+      onOutput: () => {
+        if (this.authLoginCompleteSession?.sessionId === sessionId) {
+          this.authLoginCompleteSession.updatedAt = new Date().toISOString();
+        }
+      }
+    });
+    this.authLoginCompleteSession = {
+      sessionId,
+      process,
+      createdAt: now,
+      updatedAt: now
+    };
+
+    logger.info("lark_shared_auth_login_complete_session_started", {
+      sessionId,
+      callId: process.callId,
+      pid: process.pid
+    });
+    return this.buildAuthLoginCompleteSessionResult(this.authLoginCompleteSession);
+  }
+
+  getUserLoginCompletionStatus(sessionId?: string) {
+    const session = this.authLoginCompleteSession;
+    if (!session) {
+      return {
+        status: "idle",
+        sessionId: sessionId || "",
+        raw: {
+          stdout: "",
+          stderr: ""
+        },
+        hint: "尚未开始检测用户授权完成状态。"
+      };
+    }
+    if (sessionId && session.sessionId !== sessionId) {
+      return {
+        status: "not_found",
+        sessionId,
+        raw: {
+          stdout: "",
+          stderr: ""
+        },
+        hint: "没有找到对应的用户授权检测会话，请重新发起授权。"
+      };
+    }
+
+    return this.buildAuthLoginCompleteSessionResult(session);
+  }
+
   async getAuthStatus() {
     logger.info("lark_shared_auth_status_start");
     const result = await this.runner.run(["auth", "status", "--json"], {
@@ -314,6 +388,32 @@ export class LarkSharedService {
       ]
     };
   }
+
+  private buildAuthLoginCompleteSessionResult(session: AuthLoginCompleteSession) {
+    const status = getConfigInitSessionStatus(session.process);
+    return {
+      sessionId: session.sessionId,
+      status,
+      startedAt: session.createdAt,
+      updatedAt: session.updatedAt,
+      pid: session.process.pid,
+      callId: session.process.callId,
+      raw: {
+        stdout: session.process.stdout.trim(),
+        stderr: session.process.stderr.trim(),
+        parsed: status === "completed" ? parseJsonSafely(session.process.stdout) : undefined,
+        running: session.process.running,
+        exitCode: session.process.exitCode,
+        error: session.process.error
+      },
+      hint:
+        status === "running"
+          ? "正在等待用户在飞书页面完成授权。"
+          : status === "completed"
+            ? "用户授权已完成。"
+            : "用户授权检测失败，请重新发起授权。"
+    };
+  }
 }
 
 function getConfigInitSessionStatus(process: LarkCliInteractiveProcess) {
@@ -369,4 +469,12 @@ function pickNumber(value: Record<string, unknown>, keys: string[]) {
 
 function normalizeCliUrl(value: string) {
   return value.trim().replace(/^`+|`+$/g, "").replace(/\\`$/g, "").replace(/[),.;，。]+$/, "");
+}
+
+function parseJsonSafely(value: string) {
+  try {
+    return JSON.parse(value);
+  } catch (_error) {
+    return undefined;
+  }
 }

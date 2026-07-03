@@ -71,6 +71,28 @@ larkSharedRouter.post(
   })
 );
 
+larkSharedRouter.post(
+  "/auth/login/complete/start",
+  asyncHandler(async (req, res) => {
+    const { deviceCode } = req.body as { deviceCode?: string };
+    if (!deviceCode) {
+      throw new HttpError(400, "缺少 deviceCode", "MISSING_DEVICE_CODE");
+    }
+
+    const data = services.larkShared.startUserLoginCompletion(deviceCode);
+    res.json({ ok: true, data });
+  })
+);
+
+larkSharedRouter.get(
+  "/auth/login/complete/status",
+  asyncHandler(async (req, res) => {
+    const sessionId = typeof req.query.sessionId === "string" ? req.query.sessionId : undefined;
+    const data = services.larkShared.getUserLoginCompletionStatus(sessionId);
+    res.json({ ok: true, data });
+  })
+);
+
 larkSharedRouter.get(
   "/auth/status",
   asyncHandler(async (_req, res) => {

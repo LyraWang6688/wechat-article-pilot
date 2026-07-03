@@ -8,7 +8,9 @@ const DEFAULT_TABLE_NAME = "推送草稿表";
 let latestNoticeDetail = "";
 let isBitableInitializing = false;
 let configInitPollTimer = null;
+let authCompletePollTimer = null;
 let currentWizardPanel = 0;
+let isAuthCompleting = false;
 
 const TODO_PROGRESS_MAP = {
   createAppTodo: "progressCreateApp",
@@ -170,6 +172,30 @@ function setBusy(button, busy) {
   button.textContent = busy ? "处理中..." : button.dataset.originalText;
 }
 
+function openExternalLink(url) {
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
+function setLinkButton(buttonId, url, label, fallbackLabel) {
+  const button = $(buttonId);
+  if (!button) {
+    return;
+  }
+  button.dataset.fallbackText ||= fallbackLabel || button.textContent;
+  if (!url) {
+    delete button.dataset.linkUrl;
+    button.textContent = button.dataset.fallbackText;
+    button.dataset.originalText = button.dataset.fallbackText;
+    button.classList.remove("link-ready");
+    return;
+  }
+  button.dataset.linkUrl = url;
+  button.textContent = label;
+  button.dataset.originalText = label;
+  button.disabled = false;
+  button.classList.add("link-ready");
+}
+
 async function requestJson(path, options = {}) {
   const response = await fetch(path, {
     headers: {
@@ -185,11 +211,13 @@ async function requestJson(path, options = {}) {
   return payload;
 }
 
-async function withButton(button, title, action) {
+async function withButton(button, title, action, options = {}) {
   try {
     setBusy(button, true);
     const payload = await action();
-    showResult(title, payload);
+    if (options.showResult !== false) {
+      showResult(title, payload);
+    }
     return payload;
   } catch (error) {
     showResult(`${title}失败`, error);
@@ -412,23 +440,16 @@ function stopConfigInitPolling() {
   }
 }
 
+function stopAuthCompletePolling() {
+  if (authCompletePollTimer) {
+    clearTimeout(authCompletePollTimer);
+    authCompletePollTimer = null;
+  }
+}
+
 function setConfigLink(value) {
-  const link = $("configLinkStatus");
-  const text = $("configLinkText");
   const url = normalizeUrl(value);
-  if (!link || !text) {
-    return;
-  }
-  if (!url) {
-    link.hidden = true;
-    link.removeAttribute("href");
-    text.hidden = false;
-    text.textContent = "点击创建后显示";
-    return;
-  }
-  link.hidden = false;
-  link.href = url;
-  text.hidden = true;
+  setLinkButton("initConfigBtn", url, "打开飞书创建链接", "创建新应用");
 }
 
 function pollConfigInitStatus(sessionId, attempt = 0) {
@@ -440,10 +461,22 @@ function pollConfigInitStatus(sessionId, attempt = 0) {
   configInitPollTimer = setTimeout(async () => {
     try {
       const payload = await requestJson(`/api/lark/shared/config/init/status?sessionId=${encodeURIComponent(sessionId)}`);
-      showResult("创建新应用", payload);
       setConfigLink(payload.data?.verificationUrl);
       if (payload.data?.status === "completed") {
         setTodoStatus("createAppTodo", "done");
+        setLinkButton("initConfigBtn", "", "创建新应用", "创建新应用");
+        if ($("initConfigBtn")) {
+          $("initConfigBtn").textContent = "已创建新应用";
+          $("initConfigBtn").dataset.originalText = "已创建新应用";
+          $("initConfigBtn").disabled = true;
+        }
+        showResult("创建新应用完成", {
+          ok: true,
+          data: {
+            status: "completed",
+            message: "新应用创建完成，可以继续用户授权。"
+          }
+        });
         stopConfigInitPolling();
         return;
       }
@@ -595,18 +628,70 @@ function setDeviceCode(value) {
 }
 
 function setAuthLink(value) {
-  const link = $("authLinkStatus");
   const url = normalizeUrl(value);
-  if (!link) {
+  setLinkButton("startLoginBtn", url, "打开飞书授权链接", "开始授权");
+}
+
+function pollAuthCompletionStatus(sessionId, attempt = 0) {
+  stopAuthCompletePolling();
+  if (!sessionId || attempt >= 180) {
     return;
   }
-  if (!url) {
-    link.hidden = true;
-    link.removeAttribute("href");
+
+  authCompletePollTimer = setTimeout(async () => {
+    try {
+      const payload = await requestJson(`/api/lark/shared/auth/login/complete/status?sessionId=${encodeURIComponent(sessionId)}`);
+      if (payload.data?.status === "completed") {
+        sessionStorage.removeItem(AUTH_DEVICE_CODE_KEY);
+        setDeviceCode("");
+        setAuthLink("");
+        setTodoStatus("authTodo", "done");
+        if ($("startLoginBtn")) {
+          $("startLoginBtn").textContent = "授权已完成";
+          $("startLoginBtn").dataset.originalText = "授权已完成";
+          $("startLoginBtn").disabled = true;
+        }
+        showResult("完成用户授权", payload);
+        stopAuthCompletePolling();
+        setWizardPanel(1);
+        await runBitableInitialization();
+        return;
+      }
+      if (payload.data?.status === "failed" || payload.data?.status === "not_found") {
+        setTodoStatus("authTodo", "warn");
+        showResult("自动检测用户授权失败", payload);
+        stopAuthCompletePolling();
+        return;
+      }
+      setTodoStatus("authTodo", "active");
+      pollAuthCompletionStatus(sessionId, attempt + 1);
+    } catch (error) {
+      setTodoStatus("authTodo", "warn");
+      showResult("检查用户授权进度失败", error);
+      stopAuthCompletePolling();
+    }
+  }, 2000);
+}
+
+async function completeUserLoginAutomatically(deviceCode) {
+  if (!deviceCode || isAuthCompleting) {
     return;
   }
-  link.hidden = false;
-  link.href = url;
+  isAuthCompleting = true;
+  setTodoStatus("authTodo", "active");
+  setDeviceCode(deviceCode);
+  try {
+    const payload = await requestJson("/api/lark/shared/auth/login/complete/start", {
+      method: "POST",
+      body: JSON.stringify({ deviceCode })
+    });
+    pollAuthCompletionStatus(payload.data?.sessionId);
+  } catch (error) {
+    setTodoStatus("authTodo", "warn");
+    showResult("启动用户授权检测失败", error);
+  } finally {
+    isAuthCompleting = false;
+  }
 }
 
 function restoreProgress() {
@@ -661,6 +746,11 @@ function updateWechatTodos() {
 }
 
 $("initConfigBtn").addEventListener("click", async (event) => {
+  const linkUrl = event.currentTarget.dataset.linkUrl;
+  if (linkUrl) {
+    openExternalLink(linkUrl);
+    return;
+  }
   stopConfigInitPolling();
   setTodoStatus("createAppTodo", "active");
   const payload = await withButton(event.currentTarget, "创建新应用", () =>
@@ -668,6 +758,7 @@ $("initConfigBtn").addEventListener("click", async (event) => {
       method: "POST",
       body: JSON.stringify({})
     })
+  , { showResult: false }
   );
   if (!payload) {
     setTodoStatus("createAppTodo", "warn");
@@ -678,12 +769,19 @@ $("initConfigBtn").addEventListener("click", async (event) => {
 });
 
 $("startLoginBtn").addEventListener("click", async (event) => {
+  const linkUrl = event.currentTarget.dataset.linkUrl;
+  if (linkUrl) {
+    openExternalLink(linkUrl);
+    completeUserLoginAutomatically(setDeviceCode(""));
+    return;
+  }
   setTodoStatus("authTodo", "active");
   const payload = await withButton(event.currentTarget, "发起用户授权", () =>
     requestJson("/api/lark/shared/auth/login/start", {
       method: "POST",
       body: JSON.stringify({ scopes: P0_REQUIRED_USER_SCOPES })
     })
+  , { showResult: false }
   );
   const deviceCode = payload?.data?.deviceCode || "";
   const verificationUrl = payload?.data?.verificationUrl || "";
@@ -691,34 +789,7 @@ $("startLoginBtn").addEventListener("click", async (event) => {
   setAuthLink(verificationUrl);
   setTodoStatus("authTodo", deviceCode ? "active" : "warn");
   if (deviceCode) {
-    event.currentTarget.textContent = "重新获取授权链接";
-    event.currentTarget.dataset.originalText = "重新获取授权链接";
-  }
-});
-
-$("completeLoginBtn").addEventListener("click", async (event) => {
-  const deviceCode = setDeviceCode("");
-  if (!deviceCode) {
-    showResult("完成用户授权失败", {
-      ok: false,
-      error: {
-        code: "MISSING_DEVICE_CODE",
-        message: "请先点击“开始授权”，打开授权链接完成飞书授权后，再点击“我已完成授权”。"
-      }
-    });
-    setTodoStatus("authTodo", "warn");
-    return;
-  }
-  const payload = await withButton(event.currentTarget, "完成用户授权", () =>
-    requestJson("/api/lark/shared/auth/login/complete", {
-      method: "POST",
-      body: JSON.stringify({ deviceCode })
-    })
-  );
-  setTodoStatus("authTodo", payload ? "done" : "warn");
-  if (payload) {
-    setWizardPanel(1);
-    await runBitableInitialization();
+    completeUserLoginAutomatically(deviceCode);
   }
 });
 
