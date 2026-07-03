@@ -1,7 +1,19 @@
 const $ = (id) => document.getElementById(id);
 
-const output = $("output");
-const copyOutputBtn = $("copyOutputBtn");
+const AUTH_DEVICE_CODE_KEY = "wechatArticlePilot.authDeviceCode";
+const PROGRESS_STATUS_KEY = "wechatArticlePilot.progressStatus";
+const WORKSPACE_STATE_KEY = "wechatArticlePilot.workspaceState";
+const DEFAULT_BASE_NAME = "公众号文章同步工作台";
+const DEFAULT_TABLE_NAME = "推送草稿表";
+let latestNoticeDetail = "";
+let isBitableInitializing = false;
+
+const TODO_PROGRESS_MAP = {
+  createAppTodo: "progressCreateApp",
+  authTodo: "progressAuth",
+  wechatAppIdTodo: "progressWechat",
+  wechatSecretTodo: "progressWechat"
+};
 
 const P0_REQUIRED_USER_SCOPES = [
   "base:app:create",
@@ -18,8 +30,95 @@ const P0_REQUIRED_USER_SCOPES = [
 ];
 
 function showResult(title, payload) {
-  const time = new Date().toLocaleString();
-  output.textContent = `[${time}] ${title}\n${JSON.stringify(payload, null, 2)}\n\n${output.textContent}`;
+  const panel = $("noticePanel");
+  const titleElement = $("noticeTitle");
+  const summaryElement = $("noticeSummary");
+  const detailElement = $("noticeDetail");
+  const linkElement = $("noticeLink");
+  const ok = payload?.ok !== false && !payload?.error;
+  const notice = buildNotice(title, payload, ok);
+
+  latestNoticeDetail = JSON.stringify(payload, null, 2);
+  panel.hidden = false;
+  panel.className = `notice-panel ${ok ? "ok" : "warn"}`;
+  titleElement.textContent = title;
+  summaryElement.textContent = notice.summary;
+  detailElement.textContent = latestNoticeDetail;
+  if (notice.link) {
+    linkElement.hidden = false;
+    linkElement.href = notice.link;
+    linkElement.textContent = notice.linkText || "打开链接";
+  } else {
+    linkElement.hidden = true;
+    linkElement.removeAttribute("href");
+  }
+}
+
+function buildNotice(title, payload, ok) {
+  if (!ok) {
+    return {
+      summary: payload?.error?.message || payload?.message || "操作失败，请查看技术详情或联系开发者。"
+    };
+  }
+
+  const raw = payload?.data?.raw;
+  const verificationUrl = findDeepValue(raw, [
+    "verification_url",
+    "verification_uri",
+    "verification_uri_complete",
+    "verificationUrl",
+    "verificationUri"
+  ]);
+  const userCode = findDeepValue(raw, ["user_code", "userCode"]);
+  const deviceCode = findDeepValue(raw, ["device_code", "deviceCode"]);
+  const baseToken = payload?.data?.baseToken || findDeepValue(raw, ["base_token", "baseToken", "app_token", "appToken"]);
+  const tableId = payload?.data?.tableId || findDeepValue(raw, ["table_id", "tableId"]);
+  const baseUrl = payload?.data?.baseUrl || findDeepValue(raw, ["url", "base_url", "baseUrl", "app_url", "appUrl"]);
+
+  if (verificationUrl) {
+    return {
+      summary: userCode ? `请打开授权链接完成操作。页面验证码：${userCode}。` : "请打开授权链接完成操作。",
+      link: verificationUrl,
+      linkText: "打开授权链接"
+    };
+  }
+  if (deviceCode) {
+    return { summary: "授权已发起。请打开飞书授权页面完成授权，然后回到本页点击“我已完成授权”。" };
+  }
+  if (baseToken && tableId) {
+    return {
+      summary: baseUrl ? "模板数据表已创建，可以打开多维表格查看。" : "模板数据表已创建，系统已自动保存后续工作流所需信息。",
+      link: baseUrl,
+      linkText: "打开多维表格"
+    };
+  }
+  if (title.includes("工作流")) {
+    return { summary: "工作流创建流程已完成，请到飞书多维表格中确认是否启用成功。" };
+  }
+  if (title.includes("创建多维表格")) {
+    return {
+      summary: baseUrl ? "多维表格已创建，系统将继续新增推送草稿表。" : "多维表格已创建，系统将继续下一步。",
+      link: baseUrl,
+      linkText: "打开多维表格"
+    };
+  }
+  if (title.includes("新增推送草稿表")) {
+    return { summary: "推送草稿表已新增，系统将继续创建自动化推送工作流。" };
+  }
+  if (title.includes("自动化推送")) {
+    return { summary: "自动化推送工作流已创建，系统将继续创建结果提醒工作流。" };
+  }
+  if (title.includes("自动提醒")) {
+    return {
+      summary: "多维表格、数据表和两条工作流都已创建完成。现在可以打开多维表格查看。",
+      link: getWorkspaceState().baseUrl,
+      linkText: "打开多维表格"
+    };
+  }
+  if (title.includes("授权")) {
+    return { summary: "授权状态已更新，可以继续下一步。" };
+  }
+  return { summary: "操作完成，可以继续下一步。" };
 }
 
 function setBusy(button, busy) {
@@ -58,7 +157,30 @@ async function withButton(button, title, action) {
 }
 
 function getValue(id) {
-  return $(id).value.trim();
+  return $(id)?.value.trim() || "";
+}
+
+function loadProgressStatus() {
+  try {
+    return JSON.parse(localStorage.getItem(PROGRESS_STATUS_KEY) || "{}");
+  } catch (_error) {
+    return {};
+  }
+}
+
+function saveProgressStatus(status) {
+  localStorage.setItem(PROGRESS_STATUS_KEY, JSON.stringify(status));
+}
+
+function setStepStatus(id, status) {
+  const element = $(id);
+  if (!element) {
+    return;
+  }
+  element.className = `progress-item ${status}`;
+  const stored = loadProgressStatus();
+  stored[id] = status;
+  saveProgressStatus(stored);
 }
 
 function setTodoStatus(id, status) {
@@ -67,12 +189,210 @@ function setTodoStatus(id, status) {
     return;
   }
   element.className = `todo-dot ${status}`;
+  const progressId = TODO_PROGRESS_MAP[id];
+  if (progressId) {
+    setStepStatus(progressId, status);
+  }
+}
+
+function setAutomationStepStatus(id, status) {
+  const element = $(id);
+  if (!element) {
+    return;
+  }
+  element.className = `automation-step ${status}`;
+  const dot = element.querySelector(".todo-dot");
+  if (dot) {
+    dot.className = `todo-dot ${status}`;
+  }
+}
+
+function resetBitableAutomationSteps() {
+  ["bitableBaseStep", "bitableTableStep", "bitableSyncWorkflowStep", "bitableNotifyWorkflowStep"].forEach((id) =>
+    setAutomationStepStatus(id, "pending")
+  );
 }
 
 function setInputValue(id, value) {
-  if (value) {
-    $(id).value = value;
+  const element = $(id);
+  if (element && value) {
+    element.value = value;
   }
+}
+
+function getWebhookUrl() {
+  return `${window.location.origin}/api/webhooks/feishu/base-record-sync`;
+}
+
+function saveWorkspaceState(state) {
+  sessionStorage.setItem(WORKSPACE_STATE_KEY, JSON.stringify(state));
+}
+
+function getWorkspaceState() {
+  try {
+    return JSON.parse(sessionStorage.getItem(WORKSPACE_STATE_KEY) || "{}");
+  } catch (_error) {
+    return {};
+  }
+}
+
+function updateWorkspaceLink(state = getWorkspaceState()) {
+  const link = $("workspaceLinkStatus");
+  const text = $("workspaceTextStatus");
+  if (state.baseUrl) {
+    link.hidden = false;
+    link.href = state.baseUrl;
+    text.hidden = true;
+    return;
+  }
+  link.hidden = true;
+  link.removeAttribute("href");
+  text.hidden = false;
+  text.textContent = state.baseToken && state.tableId ? "已创建，链接暂未返回" : "等待用户授权完成";
+}
+
+async function runBitableInitialization() {
+  if (isBitableInitializing) {
+    return;
+  }
+  isBitableInitializing = true;
+  resetBitableAutomationSteps();
+  setStepStatus("progressTable", "active");
+  setStepStatus("progressWorkflow", "pending");
+  updateWorkspaceLink({});
+
+  try {
+    setAutomationStepStatus("bitableBaseStep", "active");
+    showResult("正在创建多维表格", {
+      ok: true,
+      data: {
+        message: "正在创建公众号文章同步工作台。"
+      }
+    });
+    const basePayload = await requestJson("/api/templates/wechat-draft/base", {
+      method: "POST",
+      body: JSON.stringify({
+        baseName: DEFAULT_BASE_NAME
+      })
+    });
+    const baseState = {
+      baseName: basePayload.data?.baseName || DEFAULT_BASE_NAME,
+      baseToken: basePayload.data?.baseToken,
+      baseUrl: basePayload.data?.baseUrl
+    };
+    saveWorkspaceState(baseState);
+    updateWorkspaceLink(baseState);
+    setAutomationStepStatus("bitableBaseStep", "done");
+    showResult("创建多维表格完成", basePayload);
+
+    setAutomationStepStatus("bitableTableStep", "active");
+    showResult("正在新增推送草稿表", {
+      ok: true,
+      data: {
+        message: "正在新增推送草稿表并创建模板字段。"
+      }
+    });
+    const tablePayload = await requestJson("/api/templates/wechat-draft/table", {
+      method: "POST",
+      body: JSON.stringify({
+        baseToken: baseState.baseToken,
+        tableName: DEFAULT_TABLE_NAME
+      })
+    });
+    const workspace = {
+      ...baseState,
+      tableName: tablePayload.data?.tableName || DEFAULT_TABLE_NAME,
+      tableId: tablePayload.data?.tableId
+    };
+    saveWorkspaceState(workspace);
+    updateWorkspaceLink(workspace);
+    setAutomationStepStatus("bitableTableStep", "done");
+    setStepStatus("progressTable", "done");
+    showResult("新增推送草稿表完成", tablePayload);
+
+    setStepStatus("progressWorkflow", "active");
+    setAutomationStepStatus("bitableSyncWorkflowStep", "active");
+    showResult("正在创建自动化推送工作流", {
+      ok: true,
+      data: {
+        message: "正在创建状态触发后端 webhook 的工作流。"
+      }
+    });
+    const syncWorkflowPayload = await requestJson("/api/templates/wechat-draft/workflow", {
+      method: "POST",
+      body: JSON.stringify({
+        baseToken: workspace.baseToken,
+        tableId: workspace.tableId,
+        tableName: workspace.tableName,
+        webhookUrl: getWebhookUrl(),
+        workflowType: "sync",
+        enable: true
+      })
+    });
+    setAutomationStepStatus("bitableSyncWorkflowStep", "done");
+    showResult("创建自动化推送工作流完成", syncWorkflowPayload);
+
+    setAutomationStepStatus("bitableNotifyWorkflowStep", "active");
+    showResult("正在创建自动提醒推送结果工作流", {
+      ok: true,
+      data: {
+        message: "正在创建同步结果飞书消息提醒工作流。"
+      }
+    });
+    const notifyWorkflowPayload = await requestJson("/api/templates/wechat-draft/workflow", {
+      method: "POST",
+      body: JSON.stringify({
+        baseToken: workspace.baseToken,
+        tableId: workspace.tableId,
+        tableName: workspace.tableName,
+        webhookUrl: getWebhookUrl(),
+        workflowType: "notify",
+        enable: true
+      })
+    });
+    setAutomationStepStatus("bitableNotifyWorkflowStep", "done");
+    setStepStatus("progressWorkflow", "done");
+    showResult("创建自动提醒推送结果工作流完成", notifyWorkflowPayload);
+  } catch (error) {
+    const activeStep = document.querySelector(".automation-step.active");
+    if (activeStep?.id) {
+      setAutomationStepStatus(activeStep.id, "warn");
+    }
+    if ($("progressTable")?.className.includes("active")) {
+      setStepStatus("progressTable", "warn");
+    }
+    if ($("progressWorkflow")?.className.includes("active")) {
+      setStepStatus("progressWorkflow", "warn");
+    }
+    showResult("多维表格自动初始化失败", error);
+  } finally {
+    isBitableInitializing = false;
+  }
+}
+
+function setDeviceCode(value) {
+  if (value) {
+    sessionStorage.setItem(AUTH_DEVICE_CODE_KEY, value);
+  }
+  const stored = value || sessionStorage.getItem(AUTH_DEVICE_CODE_KEY) || "";
+  const element = $("deviceCodeStatus");
+  if (element) {
+    element.textContent = stored ? "已发起，请完成飞书授权" : "尚未开始";
+  }
+  return stored;
+}
+
+function restoreProgress() {
+  const stored = loadProgressStatus();
+  Object.entries(stored).forEach(([id, status]) => {
+    const element = $(id);
+    if (element) {
+      element.className = `progress-item ${status}`;
+    }
+  });
+  setDeviceCode("");
+  updateWorkspaceLink();
+  updateWechatTodos();
 }
 
 function findDeepValue(value, keys) {
@@ -94,95 +414,26 @@ function findDeepValue(value, keys) {
 }
 
 function updateWechatTodos() {
-  setTodoStatus("wechatAppIdTodo", getValue("wechatAppIdInput") ? "done" : "pending");
-  setTodoStatus("wechatSecretTodo", getValue("wechatSecretInput") ? "done" : "pending");
+  const hasAppId = Boolean(getValue("wechatAppIdInput"));
+  const hasSecret = Boolean(getValue("wechatSecretInput"));
+  setTodoStatus("wechatAppIdTodo", hasAppId ? "done" : "pending");
+  setTodoStatus("wechatSecretTodo", hasSecret ? "done" : "pending");
+  setStepStatus("progressWechat", hasAppId && hasSecret ? "done" : hasAppId || hasSecret ? "active" : "pending");
 }
-
-function autofillTemplateCoordinates(payload) {
-  const raw = payload?.data?.raw;
-  const baseToken =
-    payload?.data?.baseToken || findDeepValue(raw, ["base_token", "baseToken", "app_token", "appToken", "token"]);
-  const tableId = payload?.data?.tableId || findDeepValue(raw, ["table_id", "tableId"]);
-
-  setInputValue("baseTokenInput", baseToken);
-  setInputValue("tableIdInput", tableId);
-  setTodoStatus("tableTodo", baseToken && tableId ? "done" : "warn");
-}
-
-function renderEnvSummary(payload) {
-  const data = payload?.data || {};
-  const runtime = data.runtime || {};
-  const larkCli = data.larkCli || {};
-  const auth = data.auth || {};
-  const user = auth.user || {};
-  const items = [
-    {
-      label: "后端主机",
-      value: runtime.hostname || "未知",
-      detail: `${runtime.platform || "-"} / ${runtime.cwd || "-"}`
-    },
-    {
-      label: "Node.js",
-      value: runtime.nodeVersion || "未知",
-      detail: `PID ${runtime.pid || "-"} / PORT ${runtime.port || "-"}`
-    },
-    {
-      label: "lark-cli",
-      value: larkCli.available ? "可用" : "不可用",
-      detail: larkCli.available ? larkCli.version || larkCli.bin || "-" : larkCli.error?.message || larkCli.bin || "-",
-      ok: Boolean(larkCli.available)
-    },
-    {
-      label: "授权用户",
-      value: auth.available ? user.userName || user.openId || "已授权" : "未授权/不可用",
-      detail: auth.available ? `${user.tokenStatus || "-"} / ${user.openId || "-"}` : auth.error?.message || auth.identity || "-",
-      ok: Boolean(auth.available)
-    }
-  ];
-
-  $("envSummary").innerHTML = items
-    .map((item) => {
-      const className = typeof item.ok === "boolean" ? (item.ok ? " ok" : " warn") : "";
-      return `<div class="status-item${className}">
-        <span>${item.label}</span>
-        <strong>${item.value}</strong>
-        <small>${item.detail}</small>
-      </div>`;
-    })
-    .join("");
-}
-
-$("checkEnvBtn").addEventListener("click", async (event) => {
-  const payload = await withButton(event.currentTarget, "执行环境检查", () => requestJson("/api/system/env"));
-  if (payload) {
-    renderEnvSummary(payload);
-  }
-});
-
-$("checkHealthBtn").addEventListener("click", (event) =>
-  withButton(event.currentTarget, "服务检查", () => requestJson("/api/health"))
-);
-
-$("checkCliBtn").addEventListener("click", (event) =>
-  withButton(event.currentTarget, "CLI 检查", () => requestJson("/api/lark/shared/version"))
-);
 
 $("initConfigBtn").addEventListener("click", async (event) => {
+  setTodoStatus("createAppTodo", "active");
   const payload = await withButton(event.currentTarget, "飞书应用初始化", () =>
     requestJson("/api/lark/shared/config/init", {
       method: "POST",
-      body: JSON.stringify({
-        appId: getValue("appIdInput") || undefined,
-        appSecret: getValue("appSecretInput") || undefined,
-        brand: getValue("brandInput") || "feishu",
-        profileName: getValue("profileNameInput") || undefined
-      })
+      body: JSON.stringify({})
     })
   );
   setTodoStatus("createAppTodo", payload ? "done" : "warn");
 });
 
 $("startLoginBtn").addEventListener("click", async (event) => {
+  setTodoStatus("authTodo", "active");
   const payload = await withButton(event.currentTarget, "发起用户授权", () =>
     requestJson("/api/lark/shared/auth/login/start", {
       method: "POST",
@@ -190,73 +441,50 @@ $("startLoginBtn").addEventListener("click", async (event) => {
     })
   );
   const deviceCode = findDeepValue(payload?.data?.raw, ["device_code", "deviceCode"]);
-  setInputValue("deviceCodeInput", deviceCode);
+  setDeviceCode(deviceCode);
+  setTodoStatus("authTodo", deviceCode ? "active" : "warn");
 });
 
 $("completeLoginBtn").addEventListener("click", async (event) => {
+  const deviceCode = setDeviceCode("");
+  if (!deviceCode) {
+    showResult("完成用户授权失败", {
+      ok: false,
+      error: {
+        code: "MISSING_DEVICE_CODE",
+        message: "请先点击“开始授权”，打开授权链接完成飞书授权后，再点击“我已完成授权”。"
+      }
+    });
+    setTodoStatus("authTodo", "warn");
+    return;
+  }
   const payload = await withButton(event.currentTarget, "完成用户授权", () =>
     requestJson("/api/lark/shared/auth/login/complete", {
       method: "POST",
-      body: JSON.stringify({ deviceCode: getValue("deviceCodeInput") })
+      body: JSON.stringify({ deviceCode })
     })
   );
   setTodoStatus("authTodo", payload ? "done" : "warn");
-});
-
-$("authStatusBtn").addEventListener("click", (event) =>
-  withButton(event.currentTarget, "授权状态", () => requestJson("/api/lark/shared/auth/status"))
-);
-
-$("currentUserBtn").addEventListener("click", (event) =>
-  withButton(event.currentTarget, "当前授权用户", () => requestJson("/api/lark/shared/auth/current-user"))
-);
-
-$("setupTemplateBtn").addEventListener("click", async (event) => {
-  const payload = await withButton(event.currentTarget, "创建模板数据表", () =>
-    requestJson("/api/templates/wechat-draft/setup", {
-      method: "POST",
-      body: JSON.stringify({
-        baseName: getValue("baseNameInput"),
-        tableName: getValue("templateTableNameInput") || "推送草稿表"
-      })
-    })
-  );
   if (payload) {
-    autofillTemplateCoordinates(payload);
+    await runBitableInitialization();
   }
-});
-
-$("createWorkflowsBtn").addEventListener("click", async (event) => {
-  const payload = await withButton(event.currentTarget, "创建两条工作流", () =>
-    requestJson("/api/templates/wechat-draft/workflows", {
-      method: "POST",
-      body: JSON.stringify({
-        baseToken: getValue("baseTokenInput"),
-        tableId: getValue("tableIdInput"),
-        tableName: getValue("templateTableNameInput") || "推送草稿表",
-        webhookUrl: getValue("webhookUrlInput"),
-        enable: true
-      })
-    })
-  );
-  const workflows = payload?.data?.workflows || [];
-  const ok = workflows.length > 0 && workflows.every((workflow) => workflow.ok);
-  setTodoStatus("workflowTodo", ok ? "done" : "warn");
 });
 
 $("wechatAppIdInput").addEventListener("input", updateWechatTodos);
 $("wechatSecretInput").addEventListener("input", updateWechatTodos);
 
-copyOutputBtn.addEventListener("click", async () => {
-  await navigator.clipboard.writeText(output.textContent);
-  copyOutputBtn.classList.add("copied");
-  copyOutputBtn.textContent = "Copied!";
+$("copyNoticeBtn").addEventListener("click", async (event) => {
+  await navigator.clipboard.writeText(latestNoticeDetail);
+  event.currentTarget.classList.add("copied");
+  event.currentTarget.textContent = "Copied!";
   setTimeout(() => {
-    copyOutputBtn.classList.remove("copied");
-    copyOutputBtn.textContent = "复制";
+    event.currentTarget.classList.remove("copied");
+    event.currentTarget.textContent = "复制详情";
   }, 1200);
 });
 
-$("clearOutputBtn").addEventListener("click", () => {
-  output.textContent = "";
+$("clearNoticeBtn").addEventListener("click", () => {
+  $("noticePanel").hidden = true;
 });
+
+restoreProgress();

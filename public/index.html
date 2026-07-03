@@ -7,44 +7,64 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <header class="hero">
-      <div>
-        <p class="eyebrow">P0-A 原型</p>
-        <h1>飞书多维表格 × 微信公众号桥接工具</h1>
-        <p class="subtitle">按初始化步骤创建飞书应用、模板多维表格和工作流，微信侧配置预留到下一步接入。</p>
-      </div>
-      <button id="checkHealthBtn" class="secondary">检查服务</button>
-    </header>
-
     <main class="layout">
-      <section class="card">
-        <div class="card-header">
-          <div>
-            <h2>0. 当前登录账号</h2>
-            <p>确认当前真正执行后端和 lark-cli 的服务器，以及服务器上的飞书授权用户。</p>
-          </div>
-          <div class="actions">
-            <button id="checkEnvBtn">检查环境</button>
-            <button id="currentUserBtn" class="secondary">当前用户</button>
-          </div>
+      <aside class="progress-panel" aria-label="初始化进度">
+        <p class="eyebrow">初始化进度</p>
+        <h2>当前进展</h2>
+        <ol class="progress-list">
+          <li id="progressCreateApp" class="progress-item pending">
+            <span class="progress-dot"></span>
+            <div>
+              <strong>创建应用</strong>
+              <small>创建一个新的飞书应用</small>
+            </div>
+          </li>
+          <li id="progressAuth" class="progress-item pending">
+            <span class="progress-dot"></span>
+            <div>
+              <strong>用户授权</strong>
+              <small>允许系统完成后续自动化</small>
+            </div>
+          </li>
+          <li id="progressTable" class="progress-item pending">
+            <span class="progress-dot"></span>
+            <div>
+              <strong>创建数据表</strong>
+              <small>工作台和推送草稿表</small>
+            </div>
+          </li>
+          <li id="progressWorkflow" class="progress-item pending">
+            <span class="progress-dot"></span>
+            <div>
+              <strong>创建工作流</strong>
+              <small>同步请求和消息通知</small>
+            </div>
+          </li>
+          <li id="progressWechat" class="progress-item pending">
+            <span class="progress-dot"></span>
+            <div>
+              <strong>微信信息</strong>
+              <small>AppID 和 AppSecret 预留</small>
+            </div>
+          </li>
+        </ol>
+      </aside>
+
+      <div class="content-stack">
+      <section id="noticePanel" class="notice-panel" hidden>
+        <div>
+          <p class="eyebrow">最新操作提示</p>
+          <h2 id="noticeTitle">等待操作</h2>
+          <p id="noticeSummary">点击流程按钮后，这里只展示用户需要执行的下一步。</p>
+          <a id="noticeLink" class="notice-link" href="#" target="_blank" rel="noreferrer" hidden>打开链接</a>
         </div>
-        <div id="envSummary" class="status-grid">
-          <div class="status-item">
-            <span>后端主机</span>
-            <strong>未检查</strong>
-          </div>
-          <div class="status-item">
-            <span>Node.js</span>
-            <strong>未检查</strong>
-          </div>
-          <div class="status-item">
-            <span>lark-cli</span>
-            <strong>未检查</strong>
-          </div>
-          <div class="status-item">
-            <span>授权用户</span>
-            <strong>未检查</strong>
-          </div>
+        <details>
+          <summary>查看技术详情</summary>
+          <pre id="noticeDetail"></pre>
+        </details>
+        <div class="actions">
+          <button id="copyNoticeBtn" class="secondary">复制详情</button>
+          <button id="clearNoticeBtn" class="danger">关闭</button>
         </div>
       </section>
 
@@ -52,42 +72,19 @@
         <div class="card-header">
           <div>
             <h2>1. 飞书应用初始化</h2>
-            <p>先创建/绑定飞书应用，再完成用户授权。需要图形界面操作的部分，由 lark-cli 输出引导链接或提示。</p>
+            <p>先创建新的飞书应用，再完成授权，系统会自动进入后续初始化。</p>
           </div>
-          <button id="checkCliBtn" class="secondary">检查 CLI</button>
         </div>
         <div class="todo-list">
           <article class="todo-card">
             <div class="todo-title">
               <span id="createAppTodo" class="todo-dot pending"></span>
               <div>
-                <h3>创建应用</h3>
-                <p>执行 `lark-cli config init --new`，引导创建飞书应用并开通权限。</p>
+                <h3>创建新应用</h3>
               </div>
             </div>
-            <div class="grid two">
-              <label>
-                飞书 App ID
-                <input id="appIdInput" placeholder="cli_xxx，可先留空走 CLI 引导" />
-              </label>
-              <label>
-                飞书 App Secret
-                <input id="appSecretInput" type="password" placeholder="仅发送给后端 stdin，不拼到命令行" />
-              </label>
-              <label>
-                品牌
-                <select id="brandInput">
-                  <option value="feishu">feishu</option>
-                  <option value="lark">lark</option>
-                </select>
-              </label>
-              <label>
-                Profile 名称
-                <input id="profileNameInput" placeholder="P0 可留空，P2 多用户时使用" />
-              </label>
-            </div>
             <div class="actions todo-actions">
-              <button id="initConfigBtn">创建/绑定应用</button>
+              <button id="initConfigBtn">创建新应用</button>
             </div>
           </article>
 
@@ -96,31 +93,24 @@
               <span id="authTodo" class="todo-dot pending"></span>
               <div>
                 <h3>用户授权</h3>
-                <p>使用 split-flow 发起 P0 必需用户权限授权，用户完成后填回 device_code 完成登录。</p>
+                <p>授权后，系统才能继续自动创建工作台并处理推送结果。</p>
               </div>
             </div>
             <div class="permission-panel">
-              <p>本项目 P0 需要授权以下权限，用于创建模板 Base、读取字段、读取/写回记录、创建并启用工作流：</p>
-              <code>base:app:create</code>
-              <code>base:table:read</code>
-              <code>base:table:create</code>
-              <code>base:table:update</code>
-              <code>base:table:delete</code>
-              <code>base:field:read</code>
-              <code>base:record:read</code>
-              <code>base:record:create</code>
-              <code>base:record:update</code>
-              <code>base:workflow:create</code>
-              <code>base:workflow:update</code>
+              <p>授权后可完成：</p>
+              <ul>
+                <li>创建公众号文章同步工作台和推送草稿表</li>
+                <li>读取需要推送的文章内容</li>
+                <li>写回推送成功或失败的结果</li>
+                <li>创建自动推送和结果提醒流程</li>
+              </ul>
             </div>
-            <label>
-              Device Code
-              <input id="deviceCodeInput" placeholder="发起授权后，从返回 JSON 中复制 device_code" />
-            </label>
+            <div class="auto-panel">
+              <p>授权状态：<span id="deviceCodeStatus">尚未开始</span></p>
+            </div>
             <div class="actions todo-actions">
-              <button id="startLoginBtn">发起授权</button>
-              <button id="completeLoginBtn" class="secondary">完成授权</button>
-              <button id="authStatusBtn" class="secondary">查看状态</button>
+              <button id="startLoginBtn">开始授权</button>
+              <button id="completeLoginBtn" class="secondary">我已完成授权</button>
             </div>
           </article>
         </div>
@@ -130,57 +120,43 @@
         <div class="card-header">
           <div>
             <h2>2. 多维表格初始化</h2>
-            <p>不再绑定已有 Base。前置授权完成后，通过 lark-cli 自动创建模板 Base、推送草稿表和两条工作流。</p>
+            <p>用户授权完成后，系统会自动创建多维表格、数据表和两条工作流。</p>
           </div>
         </div>
-        <div class="todo-list">
-          <article class="todo-card">
-            <div class="todo-title">
-              <span id="tableTodo" class="todo-dot pending"></span>
-              <div>
-                <h3>创建数据表</h3>
-                <p>自动创建模板 Base 和「推送草稿表」，字段固定为 15 个模板字段。</p>
-              </div>
+        <div class="auto-panel">
+          <strong>自动初始化进度</strong>
+          <p>这一部分不需要用户点击。完成用户授权后，系统会依次执行下面的步骤。</p>
+          <p>创建结果：<a id="workspaceLinkStatus" href="#" target="_blank" rel="noreferrer" hidden>打开多维表格</a><span id="workspaceTextStatus">等待用户授权完成</span></p>
+        </div>
+        <div class="automation-steps" aria-label="多维表格自动初始化进度">
+          <div id="bitableBaseStep" class="automation-step pending">
+            <span class="todo-dot pending"></span>
+            <div>
+              <strong>创建多维表格</strong>
+              <small>创建「公众号文章同步工作台」，飞书会自动包含一张默认数据表。</small>
             </div>
-            <div class="grid two">
-              <label>
-                模板 Base 名称
-                <input id="baseNameInput" value="公众号文章同步工作台" />
-              </label>
-              <label>
-                数据表名称
-                <input id="templateTableNameInput" value="推送草稿表" />
-              </label>
-              <label>
-                Base Token
-                <input id="baseTokenInput" placeholder="创建数据表后自动填充" readonly />
-              </label>
-              <label>
-                Table ID
-                <input id="tableIdInput" placeholder="创建数据表后自动填充" readonly />
-              </label>
+          </div>
+          <div id="bitableTableStep" class="automation-step pending">
+            <span class="todo-dot pending"></span>
+            <div>
+              <strong>新增推送草稿表</strong>
+              <small>在多维表格中新增「推送草稿表」，并创建 15 个模板字段。</small>
             </div>
-            <div class="actions todo-actions">
-              <button id="setupTemplateBtn">创建模板数据表</button>
+          </div>
+          <div id="bitableSyncWorkflowStep" class="automation-step pending">
+            <span class="todo-dot pending"></span>
+            <div>
+              <strong>创建自动化推送工作流</strong>
+              <small>当记录状态满足 ready_to_upload 时，自动请求后端同步接口。</small>
             </div>
-          </article>
-
-          <article class="todo-card">
-            <div class="todo-title">
-              <span id="workflowTodo" class="todo-dot pending"></span>
-              <div>
-                <h3>创建工作流</h3>
-                <p>创建两条工作流：状态触发后端 webhook，写回状态后飞书消息通知用户。</p>
-              </div>
+          </div>
+          <div id="bitableNotifyWorkflowStep" class="automation-step pending">
+            <span class="todo-dot pending"></span>
+            <div>
+              <strong>创建自动提醒推送结果工作流</strong>
+              <small>当同步成功或失败时，自动发送飞书消息提醒当前授权用户。</small>
             </div>
-            <label>
-              Webhook 地址
-              <input id="webhookUrlInput" value="https://draft-api.bamamei.online/api/webhooks/feishu/base-record-sync" />
-            </label>
-            <div class="actions todo-actions">
-              <button id="createWorkflowsBtn">创建两条工作流</button>
-            </div>
-          </article>
+          </div>
         </div>
       </section>
 
@@ -221,19 +197,7 @@
         </div>
       </section>
 
-      <section class="card output-card">
-        <div class="card-header sticky-actions">
-          <div>
-            <h2>输出</h2>
-            <p>所有接口统一返回 ok/data/error，方便排查 CLI 权限、授权和 Base 参数问题。</p>
-          </div>
-          <div class="actions">
-            <button id="copyOutputBtn" class="secondary">复制</button>
-            <button id="clearOutputBtn" class="danger">清空</button>
-          </div>
-        </div>
-        <pre id="output" aria-live="polite"></pre>
-      </section>
+      </div>
     </main>
 
     <script src="/app.js"></script>

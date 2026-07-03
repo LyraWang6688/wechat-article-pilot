@@ -7,6 +7,116 @@ import { logger } from "../utils/logger.js";
 export const templateRouter = Router();
 
 templateRouter.post(
+  "/wechat-draft/base",
+  asyncHandler(async (req, res) => {
+    const { baseName } = req.body as {
+      baseName?: string;
+    };
+
+    logger.info("template_wechat_draft_base_route_received", {
+      traceId: res.locals.traceId,
+      baseName
+    });
+    const data = await services.templateBase.createWechatDraftBase({
+      baseName
+    });
+
+    logger.info("template_wechat_draft_base_route_success", {
+      traceId: res.locals.traceId,
+      baseName: data.baseName,
+      baseToken: data.baseToken
+    });
+    res.json({ ok: true, data });
+  })
+);
+
+templateRouter.post(
+  "/wechat-draft/table",
+  asyncHandler(async (req, res) => {
+    const { baseToken, tableName } = req.body as {
+      baseToken?: string;
+      tableName?: string;
+    };
+
+    if (!baseToken) {
+      throw new HttpError(400, "缺少 baseToken，请先创建多维表格", "MISSING_BASE_TOKEN");
+    }
+
+    logger.info("template_wechat_draft_table_route_received", {
+      traceId: res.locals.traceId,
+      baseToken,
+      tableName
+    });
+    const data = await services.templateBase.createWechatDraftTable({
+      baseToken,
+      tableName
+    });
+
+    logger.info("template_wechat_draft_table_route_success", {
+      traceId: res.locals.traceId,
+      baseToken,
+      tableName: data.tableName,
+      tableId: data.tableId
+    });
+    res.json({ ok: true, data });
+  })
+);
+
+templateRouter.post(
+  "/wechat-draft/workflow",
+  asyncHandler(async (req, res) => {
+    const { baseToken, tableId, tableName, webhookUrl, workflowType, enable } = req.body as {
+      baseToken?: string;
+      tableId?: string;
+      tableName?: string;
+      webhookUrl?: string;
+      workflowType?: "sync" | "notify";
+      enable?: boolean;
+    };
+
+    if (!baseToken) {
+      throw new HttpError(400, "缺少 baseToken，请先创建多维表格", "MISSING_BASE_TOKEN");
+    }
+    if (!tableId) {
+      throw new HttpError(400, "缺少 tableId，请先创建数据表", "MISSING_TABLE_ID");
+    }
+    if (!webhookUrl) {
+      throw new HttpError(400, "缺少 webhookUrl", "MISSING_WEBHOOK_URL");
+    }
+    if (!workflowType || !["sync", "notify"].includes(workflowType)) {
+      throw new HttpError(400, "workflowType 只能是 sync 或 notify", "INVALID_WORKFLOW_TYPE");
+    }
+
+    logger.info("template_wechat_draft_workflow_route_received", {
+      traceId: res.locals.traceId,
+      baseToken,
+      tableId,
+      tableName,
+      webhookUrl,
+      workflowType,
+      enable
+    });
+    const data = await services.templateBase.createWechatDraftWorkflow({
+      baseToken,
+      tableId,
+      tableName,
+      webhookUrl,
+      workflowType,
+      enable
+    });
+
+    logger.info("template_wechat_draft_workflow_route_success", {
+      traceId: res.locals.traceId,
+      baseToken,
+      tableId,
+      workflowType,
+      workflowId: data.workflowId
+    });
+    res.json({ ok: true, data });
+  })
+);
+
+templateRouter.post(
   "/wechat-draft/setup",
   asyncHandler(async (req, res) => {
     const { baseName, tableName } = req.body as {

@@ -27,6 +27,10 @@ export type CreateWechatDraftWorkflowsInput = {
   enable?: boolean;
 };
 
+export type CreateWechatDraftWorkflowInput = CreateWechatDraftWorkflowsInput & {
+  workflowType: "sync" | "notify";
+};
+
 export class TemplateBaseService {
   constructor(
     private readonly larkBase: LarkBaseService,
@@ -64,6 +68,7 @@ export class TemplateBaseService {
     });
     return {
       tableName,
+      tableId: findStringDeep(table.raw, ["table_id", "tableId", "id"]),
       trigger: {
         field: "status",
         value: "ready_to_upload"
@@ -100,15 +105,17 @@ export class TemplateBaseService {
       fieldCount: PUSH_DRAFT_TEMPLATE_FIELDS.length,
       fieldNames: PUSH_DRAFT_TEMPLATE_FIELDS.map((field) => field.name)
     });
-    const currentUser = await this.larkShared.getCurrentUser();
-    const base = await this.larkBase.createBase({
-      name: baseName,
-      tableName,
-      fields: PUSH_DRAFT_TEMPLATE_FIELDS
+    const base = await this.createWechatDraftBase({ baseName });
+    const table = await this.createWechatDraftTable({
+      baseToken: base.baseToken,
+      tableName
     });
-    const baseToken = findStringDeep(base.raw, ["base_token", "baseToken", "app_token", "appToken", "token"]);
-    const tableId = findStringDeep(base.raw, ["table_id", "tableId"]);
-    const baseUrl = findStringDeep(base.raw, ["url", "base_url", "baseUrl", "app_url", "appUrl"]);
+    const currentUser = base.currentUser;
+    const baseRaw = base.created.raw;
+    const tableRaw = table.created.raw;
+    const baseToken = base.baseToken || findStringDeep(baseRaw, ["base_token", "baseToken", "app_token", "appToken", "token"]);
+    const tableId = table.tableId || findStringDeep(tableRaw, ["table_id", "tableId", "id"]);
+    const baseUrl = base.baseUrl || findStringDeep(baseRaw, ["url", "base_url", "baseUrl", "app_url", "appUrl"]);
     const fields =
       baseToken && tableId
         ? await this.larkBase.listFields(baseToken, tableId).catch((error: unknown) => ({
@@ -148,7 +155,69 @@ export class TemplateBaseService {
         tableName,
         fieldMap
       }),
-      created: base
+      created: {
+        base: base.created,
+        table: table.created
+      }
+    };
+  }
+
+  async createWechatDraftBase(input: { baseName?: string }) {
+    const baseName = input.baseName?.trim() || "公众号文章同步工作台";
+
+    logger.info("template_wechat_draft_base_create_start", {
+      baseName
+    });
+    const currentUser = await this.larkShared.getCurrentUser();
+    const created = await this.larkBase.createBase({
+      name: baseName
+    });
+    const baseToken = findStringDeep(created.raw, ["base_token", "baseToken", "app_token", "appToken", "token"]);
+    const baseUrl = findStringDeep(created.raw, ["url", "base_url", "baseUrl", "app_url", "appUrl"]);
+
+    logger.info("template_wechat_draft_base_create_success", {
+      baseName,
+      baseToken,
+      baseUrl
+    });
+    return {
+      baseName,
+      baseToken,
+      baseUrl,
+      currentUser,
+      created
+    };
+  }
+
+  async createWechatDraftTable(input: { baseToken: string; tableName?: string }) {
+    const tableName = input.tableName?.trim() || PUSH_DRAFT_TABLE_NAME;
+    const table = await this.createPushDraftTable({
+      baseToken: input.baseToken,
+      tableName
+    });
+
+    const tableId = table.tableId || findStringDeep(table.created.raw, ["table_id", "tableId", "id"]);
+    const fields =
+      input.baseToken && tableId
+        ? await this.larkBase.listFields(input.baseToken, tableId).catch((error: unknown) => ({
+            raw: {
+              error: error instanceof Error ? error.message : String(error)
+            },
+            stdout: "",
+            stderr: ""
+          }))
+        : null;
+    const fieldMap = buildFieldMap(fields?.raw);
+
+    return {
+      tableName,
+      tableId,
+      fields: {
+        template: PUSH_DRAFT_TEMPLATE_FIELDS,
+        raw: fields?.raw ?? null,
+        map: fieldMap
+      },
+      created: table.created
     };
   }
 
@@ -237,6 +306,74 @@ export class TemplateBaseService {
       },
       workflows: results,
       note: "Workflow JSON 已按 P0 单用户策略生成；通知工作流固定发送给当前授权用户。"
+    };
+  }
+
+  async createWechatDraftWorkflow(input: CreateWechatDraftWorkflowInput) {
+    const tableName = input.tableName?.trim() || PUSH_DRAFT_TABLE_NAME;
+    const currentUser = await this.larkShared.getCurrentUser();
+    const notifyUserOpenId = currentUser.user.openId;
+    if (!currentUser.user.available || !notifyUserOpenId) {
+      throw new HttpError(
+        400,
+        "当前飞书用户未完成授权，无法创建通知当前授权用户的工作流",
+        "LARK_AUTH_USER_REQUIRED",
+        {
+          identity: currentUser.identity,
+          verified: currentUser.verified,
+          user: currentUser.user
+        }
+      );
+    }
+
+    const workflowInputs = buildWechatDraftWorkflowInputs({
+      baseToken: input.baseToken,
+      tableId: input.tableId,
+      tableName,
+      webhookUrl: input.webhookUrl,
+      notifyUserOpenId
+    });
+    const workflow = input.workflowType === "sync" ? workflowInputs[0] : workflowInputs[1];
+
+    logger.info("template_wechat_draft_workflow_start", {
+      baseToken: input.baseToken,
+      tableId: input.tableId,
+      tableName,
+      webhookUrl: input.webhookUrl,
+      workflowType: input.workflowType,
+      title: workflow.title
+    });
+
+    const created = await this.larkBase.createWorkflow({
+      baseToken: input.baseToken,
+      workflow
+    });
+    const workflowId = findStringDeep(created.raw, ["workflow_id", "workflowId", "id"]);
+    const enabled = input.enable !== false && workflowId ? await this.larkBase.enableWorkflow(input.baseToken, workflowId) : null;
+
+    logger.info("template_wechat_draft_workflow_success", {
+      baseToken: input.baseToken,
+      tableId: input.tableId,
+      workflowType: input.workflowType,
+      workflowId
+    });
+
+    return {
+      ok: true,
+      workflowType: input.workflowType,
+      title: workflow.title,
+      workflowId,
+      created,
+      enabled,
+      currentUser,
+      notificationStrategy:
+        input.workflowType === "notify"
+          ? {
+              type: "authorized_user",
+              openId: notifyUserOpenId,
+              userName: currentUser.user.userName
+            }
+          : undefined
     };
   }
 }
