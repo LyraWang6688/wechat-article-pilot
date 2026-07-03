@@ -49,6 +49,7 @@ function showResult(title, payload) {
     linkElement.hidden = false;
     linkElement.href = notice.link;
     linkElement.textContent = notice.linkText || "打开链接";
+    panel.scrollIntoView({ behavior: "smooth", block: "start" });
   } else {
     linkElement.hidden = true;
     linkElement.removeAttribute("href");
@@ -63,19 +64,15 @@ function buildNotice(title, payload, ok) {
   }
 
   const raw = payload?.data?.raw;
-  const verificationUrl = findDeepValue(raw, [
-    "verification_url",
-    "verification_uri",
-    "verification_uri_complete",
-    "verificationUrl",
-    "verificationUri"
-  ]);
+  const verificationUrl = normalizeUrl(
+    findDeepValue(raw, ["verification_url", "verification_uri", "verification_uri_complete", "verificationUrl", "verificationUri"])
+  );
   const userCode = findDeepValue(raw, ["user_code", "userCode"]);
   const deviceCode = findDeepValue(raw, ["device_code", "deviceCode"]);
-  const configInitUrl = payload?.data?.verificationUrl || findDeepValue(raw, ["verification_url", "verificationUrl"]);
+  const configInitUrl = normalizeUrl(payload?.data?.verificationUrl || findDeepValue(raw, ["verification_url", "verificationUrl"]));
   const baseToken = payload?.data?.baseToken || findDeepValue(raw, ["base_token", "baseToken", "app_token", "appToken"]);
   const tableId = payload?.data?.tableId || findDeepValue(raw, ["table_id", "tableId"]);
-  const baseUrl = payload?.data?.baseUrl || findDeepValue(raw, ["url", "base_url", "baseUrl", "app_url", "appUrl"]);
+  const baseUrl = normalizeUrl(payload?.data?.baseUrl || findDeepValue(raw, ["url", "base_url", "baseUrl", "app_url", "appUrl"]));
 
   if (configInitUrl) {
     return {
@@ -472,6 +469,14 @@ function findDeepValue(value, keys) {
   return "";
 }
 
+function normalizeUrl(value) {
+  if (!value || typeof value !== "string") {
+    return "";
+  }
+  const [url = ""] = value.match(/https?:\/\/[^\s`"'<>]+/g) || [];
+  return url.replace(/[),.;，。]+$/, "");
+}
+
 function updateWechatTodos() {
   const hasAppId = Boolean(getValue("wechatAppIdInput"));
   const hasSecret = Boolean(getValue("wechatSecretInput"));
@@ -508,6 +513,10 @@ $("startLoginBtn").addEventListener("click", async (event) => {
   const deviceCode = findDeepValue(payload?.data?.raw, ["device_code", "deviceCode"]);
   setDeviceCode(deviceCode);
   setTodoStatus("authTodo", deviceCode ? "active" : "warn");
+  if (deviceCode) {
+    event.currentTarget.textContent = "重新获取授权链接";
+    event.currentTarget.dataset.originalText = "重新获取授权链接";
+  }
 });
 
 $("completeLoginBtn").addEventListener("click", async (event) => {
