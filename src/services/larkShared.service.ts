@@ -1,5 +1,5 @@
-import { LarkCliRunner } from "./larkCliRunner.js";
-import { logger } from "../utils/logger.js";
+import { LarkCliInteractiveProcess, LarkCliRunner } from "./larkCliRunner.js";
+import { createTraceId, logger } from "../utils/logger.js";
 
 export type ConfigInitInput = {
   appId?: string;
@@ -17,6 +17,13 @@ export type AuthLoginStartResult = {
   hint: string;
 };
 
+type ConfigInitSession = {
+  sessionId: string;
+  process: LarkCliInteractiveProcess;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export const P0_REQUIRED_USER_SCOPES = [
   "base:app:create",
   "base:table:read",
@@ -32,6 +39,8 @@ export const P0_REQUIRED_USER_SCOPES = [
 ] as const;
 
 export class LarkSharedService {
+  private configInitSession?: ConfigInitSession;
+
   constructor(private readonly runner: LarkCliRunner) {}
 
   async getVersion() {
@@ -60,31 +69,78 @@ export class LarkSharedService {
       stdinParts.push(input.appSecret);
     }
 
+    const currentSession = this.configInitSession;
+    if (currentSession?.process.running) {
+      logger.info("lark_shared_config_init_reuse_running_session", {
+        sessionId: currentSession.sessionId,
+        callId: currentSession.process.callId
+      });
+      return this.buildConfigInitSessionResult(currentSession);
+    }
+
     logger.info("lark_shared_config_init_start", {
       hasAppId: Boolean(input.appId),
       hasAppSecret: Boolean(input.appSecret),
       brand: input.brand,
       profileName: input.profileName
     });
-    const result = await this.runner.run(args, {
+    const sessionId = createTraceId("config_init");
+    const now = new Date().toISOString();
+    const process = this.runner.startInteractive(args, {
       stdin: stdinParts.length ? `${stdinParts.join("\n")}\n` : undefined,
-      timeoutMs: 10 * 60 * 1000
+      timeoutMs: 10 * 60 * 1000,
+      onOutput: () => {
+        if (this.configInitSession?.sessionId === sessionId) {
+          this.configInitSession.updatedAt = new Date().toISOString();
+        }
+      }
     });
+    this.configInitSession = {
+      sessionId,
+      process,
+      createdAt: now,
+      updatedAt: now
+    };
 
-    logger.info("lark_shared_config_init_success", {
+    logger.info("lark_shared_config_init_session_started", {
+      sessionId,
+      callId: process.callId,
+      pid: process.pid,
       hasAppId: Boolean(input.appId),
       brand: input.brand,
       profileName: input.profileName
     });
-    return {
-      stdout: result.stdout,
-      stderr: result.stderr,
-      guide: [
-        "如果命令打开浏览器或输出应用创建链接，请按页面引导创建/绑定飞书应用。",
-        "应用创建完成后，继续执行用户授权步骤。",
-        "后端不会把 app secret 放进命令行参数；如已填写，将通过 stdin 传给 lark-cli。"
-      ]
-    };
+    return this.buildConfigInitSessionResult(this.configInitSession);
+  }
+
+  getConfigInitStatus(sessionId?: string) {
+    const session = this.configInitSession;
+    if (!session) {
+      return {
+        status: "idle",
+        sessionId: sessionId || "",
+        verificationUrl: "",
+        raw: {
+          stdout: "",
+          stderr: ""
+        },
+        hint: "尚未开始创建新应用，请先点击创建新应用。"
+      };
+    }
+    if (sessionId && session.sessionId !== sessionId) {
+      return {
+        status: "not_found",
+        sessionId,
+        verificationUrl: "",
+        raw: {
+          stdout: "",
+          stderr: ""
+        },
+        hint: "没有找到对应的创建应用会话，请重新点击创建新应用。"
+      };
+    }
+
+    return this.buildConfigInitSessionResult(session);
   }
 
   async startUserLogin(input: { domains?: string[]; scopes?: string[] } = {}) {
@@ -212,4 +268,47 @@ export class LarkSharedService {
       stderr: result.stderr
     };
   }
+
+  private buildConfigInitSessionResult(session: ConfigInitSession) {
+    const verificationUrl = findFirstUrl(`${session.process.stdout}\n${session.process.stderr}`);
+    const status = getConfigInitSessionStatus(session.process);
+
+    return {
+      sessionId: session.sessionId,
+      status,
+      verificationUrl,
+      startedAt: session.createdAt,
+      updatedAt: session.updatedAt,
+      pid: session.process.pid,
+      callId: session.process.callId,
+      raw: {
+        verification_url: verificationUrl,
+        stdout: session.process.stdout.trim(),
+        stderr: session.process.stderr.trim(),
+        running: session.process.running,
+        exitCode: session.process.exitCode,
+        error: session.process.error
+      },
+      guide: [
+        "请打开页面提示里的飞书链接，按飞书页面完成新应用创建。",
+        "创建完成后，系统会自动检测到流程结束。",
+        "如果长时间没有出现链接，请查看服务器日志中的 lark_cli_interactive_stdout / stderr。"
+      ]
+    };
+  }
+}
+
+function getConfigInitSessionStatus(process: LarkCliInteractiveProcess) {
+  if (process.running) {
+    return "running";
+  }
+  if (process.exitCode === 0) {
+    return "completed";
+  }
+  return "failed";
+}
+
+function findFirstUrl(value: string) {
+  const [url = ""] = value.match(/https?:\/\/[^\s"'<>]+/g) || [];
+  return url.replace(/[),.;，。]+$/, "");
 }

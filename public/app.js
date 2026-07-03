@@ -7,6 +7,7 @@ const DEFAULT_BASE_NAME = "公众号文章同步工作台";
 const DEFAULT_TABLE_NAME = "推送草稿表";
 let latestNoticeDetail = "";
 let isBitableInitializing = false;
+let configInitPollTimer = null;
 
 const TODO_PROGRESS_MAP = {
   createAppTodo: "progressCreateApp",
@@ -71,9 +72,30 @@ function buildNotice(title, payload, ok) {
   ]);
   const userCode = findDeepValue(raw, ["user_code", "userCode"]);
   const deviceCode = findDeepValue(raw, ["device_code", "deviceCode"]);
+  const configInitUrl = payload?.data?.verificationUrl || findDeepValue(raw, ["verification_url", "verificationUrl"]);
   const baseToken = payload?.data?.baseToken || findDeepValue(raw, ["base_token", "baseToken", "app_token", "appToken"]);
   const tableId = payload?.data?.tableId || findDeepValue(raw, ["table_id", "tableId"]);
   const baseUrl = payload?.data?.baseUrl || findDeepValue(raw, ["url", "base_url", "baseUrl", "app_url", "appUrl"]);
+
+  if (configInitUrl) {
+    return {
+      summary:
+        payload?.data?.status === "completed"
+          ? "新应用创建流程已完成，可以继续进行用户授权。"
+          : "请打开飞书引导链接，按页面提示完成新应用创建。",
+      link: configInitUrl,
+      linkText: "打开飞书引导链接"
+    };
+  }
+  if (payload?.data?.sessionId && payload?.data?.status === "running") {
+    return { summary: "创建新应用流程已启动，正在等待飞书返回引导链接。" };
+  }
+  if (payload?.data?.status === "completed") {
+    return { summary: "新应用创建流程已完成，可以继续进行用户授权。" };
+  }
+  if (payload?.data?.status === "failed") {
+    return { summary: "新应用创建流程失败，请查看技术详情或服务器日志。" };
+  }
 
   if (verificationUrl) {
     return {
@@ -251,6 +273,43 @@ function updateWorkspaceLink(state = getWorkspaceState()) {
   text.textContent = state.baseToken && state.tableId ? "已创建，链接暂未返回" : "等待用户授权完成";
 }
 
+function stopConfigInitPolling() {
+  if (configInitPollTimer) {
+    clearTimeout(configInitPollTimer);
+    configInitPollTimer = null;
+  }
+}
+
+function pollConfigInitStatus(sessionId, attempt = 0) {
+  stopConfigInitPolling();
+  if (!sessionId || attempt >= 300) {
+    return;
+  }
+
+  configInitPollTimer = setTimeout(async () => {
+    try {
+      const payload = await requestJson(`/api/lark/shared/config/init/status?sessionId=${encodeURIComponent(sessionId)}`);
+      showResult("创建新应用", payload);
+      if (payload.data?.status === "completed") {
+        setTodoStatus("createAppTodo", "done");
+        stopConfigInitPolling();
+        return;
+      }
+      if (payload.data?.status === "failed" || payload.data?.status === "not_found") {
+        setTodoStatus("createAppTodo", "warn");
+        stopConfigInitPolling();
+        return;
+      }
+      setTodoStatus("createAppTodo", "active");
+      pollConfigInitStatus(sessionId, attempt + 1);
+    } catch (error) {
+      showResult("检查创建新应用进度失败", error);
+      setTodoStatus("createAppTodo", "warn");
+      stopConfigInitPolling();
+    }
+  }, 2000);
+}
+
 async function runBitableInitialization() {
   if (isBitableInitializing) {
     return;
@@ -422,14 +481,20 @@ function updateWechatTodos() {
 }
 
 $("initConfigBtn").addEventListener("click", async (event) => {
+  stopConfigInitPolling();
   setTodoStatus("createAppTodo", "active");
-  const payload = await withButton(event.currentTarget, "飞书应用初始化", () =>
+  const payload = await withButton(event.currentTarget, "创建新应用", () =>
     requestJson("/api/lark/shared/config/init", {
       method: "POST",
       body: JSON.stringify({})
     })
   );
-  setTodoStatus("createAppTodo", payload ? "done" : "warn");
+  if (!payload) {
+    setTodoStatus("createAppTodo", "warn");
+    return;
+  }
+  setTodoStatus("createAppTodo", payload.data?.status === "completed" ? "done" : "active");
+  pollConfigInitStatus(payload.data?.sessionId);
 });
 
 $("startLoginBtn").addEventListener("click", async (event) => {

@@ -37,6 +37,15 @@ larkSharedRouter.post(
   })
 );
 
+larkSharedRouter.get(
+  "/config/init/status",
+  asyncHandler(async (req, res) => {
+    const sessionId = typeof req.query.sessionId === "string" ? req.query.sessionId : undefined;
+    const data = services.larkShared.getConfigInitStatus(sessionId);
+    res.json({ ok: true, data });
+  })
+);
+
 larkSharedRouter.post(
   "/auth/login/start",
   asyncHandler(async (req, res) => {
