@@ -593,16 +593,9 @@ function buildWechatDraftWorkflowInputs(input: {
             send_to_everyone: false,
             title: [{ value_type: "text", value: "公众号草稿同步结果" }],
             content: [
-              { value_type: "text", value: "记录状态已更新，请查看推送草稿表。记录链接：" },
-              { value_type: "ref", value: "$.step_trigger.recordLink" }
+              { value_type: "text", value: "推送草稿表中有记录状态已更新，请打开多维表格查看同步结果。" }
             ],
-            btn_list: [
-              {
-                text: "查看记录",
-                btn_action: "openLink",
-                link: [{ value_type: "ref", value: "$.step_trigger.recordLink" }]
-              }
-            ]
+            btn_list: []
           }
         }
       ]

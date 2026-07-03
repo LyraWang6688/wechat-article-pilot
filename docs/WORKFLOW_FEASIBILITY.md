@@ -131,7 +131,7 @@ ChangeRecordTrigger -> LarkMessageAction
 
 - `ChangeRecordTrigger.condition_list.value` 对单选字段是否必须使用 `value_type=option`。
 - `$.step_trigger.recordId` 在实际工作流中的输出路径是否稳定。
-- `LarkMessageAction.receiver` 已按官方 guide 和实测反馈使用 `{ value_type: "user", value: { id, name } }`，避免只传 `id` 后 UI 不展示具体人员。
+- `LarkMessageAction` 已收敛为官方 guide 的最小可识别结构：固定用户 `receiver`、`title`、纯文本 `content`、`btn_list: []`，避免动态按钮或未知引用导致飞书 UI 显示「未知操作」。
 - 后端写回 `status` 是否会再次触发工作流 1；需要通过条件设计避免循环。
 - 飞书工作流调用本地后端时必须使用公网可访问 URL，本地阶段需要 ngrok/frp/公网测试服务。
 
