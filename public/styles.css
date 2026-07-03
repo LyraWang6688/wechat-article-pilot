@@ -201,6 +201,10 @@ h3 {
   background: var(--primary-dark);
 }
 
+.compact-link {
+  margin-top: 8px;
+}
+
 .notice-panel details {
   border-top: 1px solid rgba(15, 23, 42, 0.08);
   padding-top: 10px;

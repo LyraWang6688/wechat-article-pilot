@@ -71,7 +71,7 @@ function buildNotice(title, payload, ok) {
   );
   const userCode = findDeepValue(raw, ["user_code", "userCode"]);
   const deviceCode = findDeepValue(raw, ["device_code", "deviceCode"]);
-  const configInitUrl = normalizeUrl(payload?.data?.verificationUrl || findDeepValue(raw, ["verification_url", "verificationUrl"]));
+  const configInitUrl = normalizeUrl(payload?.data?.verificationUrl || "");
   const baseToken = payload?.data?.baseToken || findDeepValue(raw, ["base_token", "baseToken", "app_token", "appToken"]);
   const tableId = payload?.data?.tableId || findDeepValue(raw, ["table_id", "tableId"]);
   const baseUrl = normalizeUrl(payload?.data?.baseUrl || findDeepValue(raw, ["url", "base_url", "baseUrl", "app_url", "appUrl"]));
@@ -98,7 +98,7 @@ function buildNotice(title, payload, ok) {
 
   if (verificationUrl) {
     return {
-      summary: userCode ? `请打开授权链接完成操作。页面验证码：${userCode}。` : "请打开授权链接完成操作。",
+      summary: userCode ? `请打开授权链接完成飞书授权。页面验证码：${userCode}。` : "请打开授权链接完成飞书授权。",
       link: verificationUrl,
       linkText: "打开授权链接"
     };
@@ -493,6 +493,21 @@ function setDeviceCode(value) {
   return stored;
 }
 
+function setAuthLink(value) {
+  const link = $("authLinkStatus");
+  const url = normalizeUrl(value);
+  if (!link) {
+    return;
+  }
+  if (!url) {
+    link.hidden = true;
+    link.removeAttribute("href");
+    return;
+  }
+  link.hidden = false;
+  link.href = url;
+}
+
 function restoreProgress() {
   const stored = loadProgressStatus();
   Object.entries(stored).forEach(([id, status]) => {
@@ -503,6 +518,7 @@ function restoreProgress() {
     }
   });
   setDeviceCode("");
+  setAuthLink("");
   updateWorkspaceLink();
   updateWechatTodos();
   updateProgressOverview();
@@ -568,7 +584,15 @@ $("startLoginBtn").addEventListener("click", async (event) => {
     })
   );
   const deviceCode = findDeepValue(payload?.data?.raw, ["device_code", "deviceCode"]);
+  const verificationUrl = findDeepValue(payload?.data?.raw, [
+    "verification_url",
+    "verification_uri",
+    "verification_uri_complete",
+    "verificationUrl",
+    "verificationUri"
+  ]);
   setDeviceCode(deviceCode);
+  setAuthLink(verificationUrl);
   setTodoStatus("authTodo", deviceCode ? "active" : "warn");
   if (deviceCode) {
     event.currentTarget.textContent = "重新获取授权链接";
