@@ -56,29 +56,7 @@ const P0_REQUIRED_USER_SCOPES = [
 ];
 
 function showResult(title, payload) {
-  const panel = $("noticePanel");
-  const titleElement = $("noticeTitle");
-  const summaryElement = $("noticeSummary");
-  const detailElement = $("noticeDetail");
-  const linkElement = $("noticeLink");
-  const ok = payload?.ok !== false && !payload?.error;
-  const notice = buildNotice(title, payload, ok);
-
-  latestNoticeDetail = JSON.stringify(payload, null, 2);
-  panel.hidden = false;
-  panel.className = `notice-panel ${ok ? "ok" : "warn"}`;
-  titleElement.textContent = title;
-  summaryElement.textContent = notice.summary;
-  detailElement.textContent = latestNoticeDetail;
-  if (notice.link) {
-    linkElement.hidden = false;
-    linkElement.href = notice.link;
-    linkElement.textContent = notice.linkText || "打开链接";
-    panel.scrollIntoView({ behavior: "smooth", block: "start" });
-  } else {
-    linkElement.hidden = true;
-    linkElement.removeAttribute("href");
-  }
+  latestNoticeDetail = JSON.stringify({ title, payload }, null, 2);
 }
 
 function buildNotice(title, payload, ok) {
@@ -809,20 +787,6 @@ document.querySelectorAll("[data-wizard-target]").forEach((item) => {
   });
 });
 window.addEventListener("resize", syncWizardHeight);
-
-$("copyNoticeBtn").addEventListener("click", async (event) => {
-  await navigator.clipboard.writeText(latestNoticeDetail);
-  event.currentTarget.classList.add("copied");
-  event.currentTarget.textContent = "Copied!";
-  setTimeout(() => {
-    event.currentTarget.classList.remove("copied");
-    event.currentTarget.textContent = "复制详情";
-  }, 1200);
-});
-
-$("clearNoticeBtn").addEventListener("click", () => {
-  $("noticePanel").hidden = true;
-});
 
 restoreProgress();
 setWizardPanel(0, { scroll: false });
