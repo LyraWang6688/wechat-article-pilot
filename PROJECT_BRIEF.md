@@ -16,6 +16,7 @@ https://github.com/LyraWang6688/wechat-article-pilot
 - `docs/TEMPLATE_SCHEMA.md`：说明「推送草稿表」的 15 个固定字段。
 - `docs/WORKFLOW_FEASIBILITY.md`：说明两条 Base Workflow 的可行性和当前实现策略。
 - `docs/REMOTE_SERVER_DEV.md`：说明服务器开发执行机模式。
+- `docs/AI_HANDOFF.md`：说明当前项目状态、待办、风险、服务器更新命令和给下一位 AI 的交接注意事项。
 
 关于飞书初始化和授权，核心结论是：
 
