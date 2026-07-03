@@ -91,7 +91,7 @@ profileName 可选
 
 ```bash
 lark-cli auth login \
-  --scope "base:app:create base:table:read base:table:create base:table:update base:table:delete base:field:read base:record:read base:record:create base:record:update base:workflow:create base:workflow:update" \
+  --scope "base:app:create base:table:read base:table:create base:table:update base:table:delete base:field:read base:field:create base:field:update base:view:write_only base:record:read base:record:create base:record:update base:workflow:create base:workflow:update" \
   --no-wait \
   --json
 ```

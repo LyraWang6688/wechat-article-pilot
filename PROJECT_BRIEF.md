@@ -71,7 +71,7 @@ https://github.com/LyraWang6688/wechat-article-pilot
 当前实现状态：
 
 - 已有 `lark-cli config init --new` 引导式初始化入口。
-- 已有 `lark-cli auth login --scope <P0 必需权限> --no-wait --json` split-flow 授权入口，默认申请 Base 创建、字段读取、记录读写、Workflow 创建/启用所需权限。
+- 已有 `lark-cli auth login --scope <P0 必需权限> --no-wait --json` split-flow 授权入口，默认申请 Base 创建、表创建、字段读取/创建/更新、视图写入、记录读写、Workflow 创建/启用所需权限。
 - 已有授权完成与状态检查接口。
 
 注意：

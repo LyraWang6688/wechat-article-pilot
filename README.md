@@ -91,7 +91,7 @@ DEFAULT_TABLE_ID=tblxxx
 2. 检查服务：确认 Express 后端可用。
 3. 检查 CLI：后端执行 `lark-cli --version`。
 4. 引导式配置初始化：后端执行 `lark-cli config init --new`。
-5. 用户授权：后端执行 `lark-cli auth login --scope <P0 必需权限> --no-wait --json`，授权 Base 创建、字段读取、记录读写、Workflow 创建/启用所需权限。
+5. 用户授权：后端执行 `lark-cli auth login --scope <P0 必需权限> --no-wait --json`，授权 Base 创建、表创建、字段读取/创建/更新、视图写入、记录读写、Workflow 创建/启用所需权限。
 6. 完成授权：用户扫码/浏览器确认后，把 `device_code` 填回页面。
 7. 创建模板数据表：后端执行 `lark-cli base +base-create --table-name "推送草稿表" --fields <template_fields>`。
 8. 创建工作流：后端执行 `lark-cli base +workflow-create` 和 `+workflow-enable`。
