@@ -8,25 +8,19 @@
   </head>
   <body>
     <main class="layout">
-      <section class="setup-overview" aria-label="初始化总览">
-        <div>
-          <p class="eyebrow">Setup Wizard</p>
-          <h1>系统初始化配置</h1>
-          <p>按步骤完成飞书应用、多维表格和微信公众号信息配置，系统会自动推进可自动化的部分。</p>
-        </div>
-        <div class="overview-status">
-          <span id="overviewStatus" class="status-badge active">配置中</span>
-          <strong><span id="overviewPercent">0</span>%</strong>
+      <aside class="progress-panel" aria-label="初始化进度">
+        <p class="eyebrow">初始化进度</p>
+        <h2>配置进度器</h2>
+        <div class="sidebar-overview">
+          <div>
+            <span id="overviewStatus" class="status-badge active">配置中</span>
+            <strong><span id="overviewPercent">0</span>%</strong>
+          </div>
           <small><span id="overviewCompletedCount">0</span> / 5 已完成 · 还有 <span id="overviewRemainingCount">5</span> 项</small>
           <div class="progress-track" aria-hidden="true">
             <span id="overviewBar" style="width: 0%"></span>
           </div>
         </div>
-      </section>
-
-      <aside class="progress-panel" aria-label="初始化进度">
-        <p class="eyebrow">初始化进度</p>
-        <h2>配置进度器</h2>
         <p class="progress-summary">蓝色表示当前处理，绿色表示已完成，橙色表示需要处理。</p>
         <ol class="progress-list">
           <li id="progressCreateApp" class="progress-item pending">
@@ -102,6 +96,10 @@
                 <h3>创建新应用</h3>
                 <p>适合首次使用。系统会打开飞书引导链接，按页面提示完成创建即可。</p>
               </div>
+            </div>
+            <div class="auto-panel inline-action-panel">
+              <p>引导链接：<span id="configLinkText">点击创建后显示</span></p>
+              <a id="configLinkStatus" class="notice-link compact-link" href="#" target="_blank" rel="noreferrer" hidden>打开飞书引导链接</a>
             </div>
             <div class="actions todo-actions">
               <button id="initConfigBtn">创建新应用</button>

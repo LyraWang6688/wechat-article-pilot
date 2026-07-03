@@ -67,10 +67,11 @@ function buildNotice(title, payload, ok) {
 
   const raw = payload?.data?.raw;
   const verificationUrl = normalizeUrl(
-    findDeepValue(raw, ["verification_url", "verification_uri", "verification_uri_complete", "verificationUrl", "verificationUri"])
+    payload?.data?.verificationUrl ||
+      findDeepValue(raw, ["verification_url", "verification_uri", "verification_uri_complete", "verificationUrl", "verificationUri"])
   );
   const userCode = findDeepValue(raw, ["user_code", "userCode"]);
-  const deviceCode = findDeepValue(raw, ["device_code", "deviceCode"]);
+  const deviceCode = payload?.data?.deviceCode || findDeepValue(raw, ["device_code", "deviceCode"]);
   const configInitUrl = normalizeUrl(payload?.data?.verificationUrl || "");
   const baseToken = payload?.data?.baseToken || findDeepValue(raw, ["base_token", "baseToken", "app_token", "appToken"]);
   const tableId = payload?.data?.tableId || findDeepValue(raw, ["table_id", "tableId"]);
@@ -332,6 +333,25 @@ function stopConfigInitPolling() {
   }
 }
 
+function setConfigLink(value) {
+  const link = $("configLinkStatus");
+  const text = $("configLinkText");
+  const url = normalizeUrl(value);
+  if (!link || !text) {
+    return;
+  }
+  if (!url) {
+    link.hidden = true;
+    link.removeAttribute("href");
+    text.hidden = false;
+    text.textContent = "点击创建后显示";
+    return;
+  }
+  link.hidden = false;
+  link.href = url;
+  text.hidden = true;
+}
+
 function pollConfigInitStatus(sessionId, attempt = 0) {
   stopConfigInitPolling();
   if (!sessionId || attempt >= 300) {
@@ -342,6 +362,7 @@ function pollConfigInitStatus(sessionId, attempt = 0) {
     try {
       const payload = await requestJson(`/api/lark/shared/config/init/status?sessionId=${encodeURIComponent(sessionId)}`);
       showResult("创建新应用", payload);
+      setConfigLink(payload.data?.verificationUrl);
       if (payload.data?.status === "completed") {
         setTodoStatus("createAppTodo", "done");
         stopConfigInitPolling();
@@ -518,6 +539,7 @@ function restoreProgress() {
     }
   });
   setDeviceCode("");
+  setConfigLink("");
   setAuthLink("");
   updateWorkspaceLink();
   updateWechatTodos();
@@ -583,14 +605,8 @@ $("startLoginBtn").addEventListener("click", async (event) => {
       body: JSON.stringify({ scopes: P0_REQUIRED_USER_SCOPES })
     })
   );
-  const deviceCode = findDeepValue(payload?.data?.raw, ["device_code", "deviceCode"]);
-  const verificationUrl = findDeepValue(payload?.data?.raw, [
-    "verification_url",
-    "verification_uri",
-    "verification_uri_complete",
-    "verificationUrl",
-    "verificationUri"
-  ]);
+  const deviceCode = payload?.data?.deviceCode || "";
+  const verificationUrl = payload?.data?.verificationUrl || "";
   setDeviceCode(deviceCode);
   setAuthLink(verificationUrl);
   setTodoStatus("authTodo", deviceCode ? "active" : "warn");

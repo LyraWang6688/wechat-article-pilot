@@ -9,6 +9,9 @@ export type ConfigInitInput = {
 };
 
 export type AuthLoginStartResult = {
+  deviceCode: string;
+  verificationUrl: string;
+  expiresIn?: number;
   raw: unknown;
   stdout: string;
   stderr: string;
@@ -168,13 +171,25 @@ export class LarkSharedService {
       scopes,
       domains
     });
+    const authPayload = parseAuthLoginStartPayload(result.json);
+    if (!authPayload.deviceCode || !authPayload.verificationUrl) {
+      logger.error("lark_shared_auth_login_parse_failed", {
+        scopes,
+        domains,
+        hasDeviceCode: Boolean(authPayload.deviceCode),
+        hasVerificationUrl: Boolean(authPayload.verificationUrl)
+      });
+    }
     return {
+      deviceCode: authPayload.deviceCode,
+      verificationUrl: authPayload.verificationUrl,
+      expiresIn: authPayload.expiresIn,
       raw: result.json,
       stdout: result.stdout,
       stderr: result.stderr,
       scopes,
       domains,
-      hint: "请在前端展示返回的 verification_uri / user_code / qr 相关字段，用户完成授权后再调用完成授权接口。"
+      hint: "请在前端展示顶层 verificationUrl，用户完成授权后再用顶层 deviceCode 调用完成授权接口。"
     } satisfies AuthLoginStartResult;
   }
 
@@ -311,4 +326,44 @@ function getConfigInitSessionStatus(process: LarkCliInteractiveProcess) {
 function findFirstUrl(value: string) {
   const [url = ""] = value.match(/https?:\/\/[^\s"'<>]+/g) || [];
   return url.replace(/[),.;，。]+$/, "");
+}
+
+function parseAuthLoginStartPayload(value: unknown) {
+  const payload =
+    value && typeof value === "object" && "data" in value && typeof (value as { data?: unknown }).data === "object"
+      ? ((value as { data?: unknown }).data as Record<string, unknown>)
+      : ((value || {}) as Record<string, unknown>);
+  const verificationUrl = normalizeCliUrl(
+    pickString(payload, ["verification_url", "verification_uri", "verification_uri_complete", "verificationUrl", "verificationUri"])
+  );
+
+  return {
+    deviceCode: pickString(payload, ["device_code", "deviceCode"]),
+    verificationUrl,
+    expiresIn: pickNumber(payload, ["expires_in", "expiresIn"])
+  };
+}
+
+function pickString(value: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const candidate = value[key];
+    if (typeof candidate === "string") {
+      return candidate;
+    }
+  }
+  return "";
+}
+
+function pickNumber(value: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const candidate = value[key];
+    if (typeof candidate === "number") {
+      return candidate;
+    }
+  }
+  return undefined;
+}
+
+function normalizeCliUrl(value: string) {
+  return value.trim().replace(/^`+|`+$/g, "").replace(/\\`$/g, "").replace(/[),.;，。]+$/, "");
 }
