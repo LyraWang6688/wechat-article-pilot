@@ -60,6 +60,11 @@ h2 {
   font-size: 20px;
 }
 
+h3 {
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+
 .subtitle,
 .card p {
   color: var(--muted);
@@ -98,6 +103,83 @@ h2 {
   flex-wrap: wrap;
   gap: 10px;
   justify-content: flex-end;
+}
+
+.todo-list {
+  display: grid;
+  gap: 16px;
+}
+
+.todo-card {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: #fbfcff;
+}
+
+.todo-title {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.todo-title p {
+  margin-bottom: 0;
+}
+
+.todo-dot {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin-top: 3px;
+  border-radius: 999px;
+  border: 3px solid #cbd5e1;
+  background: #ffffff;
+}
+
+.todo-dot.pending {
+  border-color: #cbd5e1;
+}
+
+.todo-dot.done {
+  border-color: var(--success);
+  background: var(--success);
+}
+
+.todo-dot.warn {
+  border-color: #f59e0b;
+  background: #f59e0b;
+}
+
+.todo-actions {
+  justify-content: flex-start;
+}
+
+.permission-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.permission-panel p {
+  flex: 1 0 100%;
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.permission-panel code {
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #075985;
+  font-size: 12px;
 }
 
 .grid {

@@ -23,6 +23,17 @@ export type BaseTableCreateInput = {
   fields?: readonly Record<string, unknown>[];
 };
 
+export type BaseCreateInput = {
+  name: string;
+  tableName?: string;
+  fields?: readonly Record<string, unknown>[];
+};
+
+export type BaseWorkflowCreateInput = {
+  baseToken: string;
+  workflow: Record<string, unknown>;
+};
+
 export class LarkBaseService {
   constructor(private readonly runner: LarkCliRunner) {}
 
@@ -86,6 +97,87 @@ export class LarkBaseService {
       baseToken: input.baseToken,
       tableName: input.name,
       fieldCount: input.fields?.length || 0
+    });
+    return {
+      raw: result.json,
+      stdout: result.stdout,
+      stderr: result.stderr
+    };
+  }
+
+  async createBase(input: BaseCreateInput) {
+    const args = ["base", "+base-create", "--name", input.name];
+
+    if (input.tableName) {
+      args.push("--table-name", input.tableName);
+    }
+    if (input.fields?.length) {
+      args.push("--fields", JSON.stringify(input.fields));
+    }
+
+    logger.info("base_create_start", {
+      baseName: input.name,
+      tableName: input.tableName,
+      fieldCount: input.fields?.length || 0,
+      fieldNames: input.fields?.map((field) => field.name)
+    });
+    const result = await this.runner.run<unknown>(args, {
+      expectJson: true,
+      timeoutMs: 5 * 60 * 1000
+    });
+
+    logger.info("base_create_success", {
+      baseName: input.name,
+      tableName: input.tableName,
+      fieldCount: input.fields?.length || 0
+    });
+    return {
+      raw: result.json,
+      stdout: result.stdout,
+      stderr: result.stderr
+    };
+  }
+
+  async createWorkflow(input: BaseWorkflowCreateInput) {
+    const title = typeof input.workflow.title === "string" ? input.workflow.title : undefined;
+    const args = ["base", "+workflow-create", "--base-token", input.baseToken, "--json", JSON.stringify(input.workflow)];
+
+    logger.info("base_workflow_create_start", {
+      baseToken: input.baseToken,
+      title
+    });
+    const result = await this.runner.run<unknown>(args, {
+      expectJson: true,
+      timeoutMs: 5 * 60 * 1000
+    });
+
+    logger.info("base_workflow_create_success", {
+      baseToken: input.baseToken,
+      title
+    });
+    return {
+      raw: result.json,
+      stdout: result.stdout,
+      stderr: result.stderr
+    };
+  }
+
+  async enableWorkflow(baseToken: string, workflowId: string) {
+    logger.info("base_workflow_enable_start", {
+      baseToken,
+      workflowId
+    });
+    const result = await this.runner.run<unknown>(
+      ["base", "+workflow-enable", "--base-token", baseToken, "--workflow-id", workflowId],
+      {
+        expectJson: true,
+        timeoutMs: 2 * 60 * 1000
+      }
+    );
+
+    logger.info("base_workflow_enable_success", {
+      baseToken,
+      workflowId
     });
     return {
       raw: result.json,

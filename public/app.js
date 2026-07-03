@@ -3,6 +3,20 @@ const $ = (id) => document.getElementById(id);
 const output = $("output");
 const copyOutputBtn = $("copyOutputBtn");
 
+const P0_REQUIRED_USER_SCOPES = [
+  "base:app:create",
+  "base:table:read",
+  "base:table:create",
+  "base:table:update",
+  "base:table:delete",
+  "base:field:read",
+  "base:record:read",
+  "base:record:create",
+  "base:record:update",
+  "base:workflow:create",
+  "base:workflow:update"
+];
+
 function showResult(title, payload) {
   const time = new Date().toLocaleString();
   output.textContent = `[${time}] ${title}\n${JSON.stringify(payload, null, 2)}\n\n${output.textContent}`;
@@ -47,6 +61,20 @@ function getValue(id) {
   return $(id).value.trim();
 }
 
+function setTodoStatus(id, status) {
+  const element = $(id);
+  if (!element) {
+    return;
+  }
+  element.className = `todo-dot ${status}`;
+}
+
+function setInputValue(id, value) {
+  if (value) {
+    $(id).value = value;
+  }
+}
+
 function findDeepValue(value, keys) {
   if (!value || typeof value !== "object") {
     return "";
@@ -65,35 +93,20 @@ function findDeepValue(value, keys) {
   return "";
 }
 
-function autofillBaseCoordinates(payload) {
+function updateWechatTodos() {
+  setTodoStatus("wechatAppIdTodo", getValue("wechatAppIdInput") ? "done" : "pending");
+  setTodoStatus("wechatSecretTodo", getValue("wechatSecretInput") ? "done" : "pending");
+}
+
+function autofillTemplateCoordinates(payload) {
   const raw = payload?.data?.raw;
-  const stdout = payload?.data?.stdout || "";
-  const baseToken = findDeepValue(raw, ["base_token", "baseToken", "app_token", "appToken"]);
-  const tableId = findDeepValue(raw, ["table_id", "tableId"]);
-  const viewId = findDeepValue(raw, ["view_id", "viewId"]);
+  const baseToken =
+    payload?.data?.baseToken || findDeepValue(raw, ["base_token", "baseToken", "app_token", "appToken", "token"]);
+  const tableId = payload?.data?.tableId || findDeepValue(raw, ["table_id", "tableId"]);
 
-  if (baseToken) {
-    $("baseTokenInput").value = baseToken;
-  }
-  if (tableId) {
-    $("tableIdInput").value = tableId;
-  }
-  if (viewId) {
-    $("viewIdInput").value = viewId;
-  }
-
-  if (!baseToken && stdout) {
-    const baseMatch = stdout.match(/(?:base_token|app_token|baseToken|appToken)["':\s]+([A-Za-z0-9_-]+)/);
-    if (baseMatch) {
-      $("baseTokenInput").value = baseMatch[1];
-    }
-  }
-  if (!tableId && stdout) {
-    const tableMatch = stdout.match(/(?:table_id|tableId)["':\s]+([A-Za-z0-9_-]+)/);
-    if (tableMatch) {
-      $("tableIdInput").value = tableMatch[1];
-    }
-  }
+  setInputValue("baseTokenInput", baseToken);
+  setInputValue("tableIdInput", tableId);
+  setTodoStatus("tableTodo", baseToken && tableId ? "done" : "warn");
 }
 
 function renderEnvSummary(payload) {
@@ -154,8 +167,8 @@ $("checkCliBtn").addEventListener("click", (event) =>
   withButton(event.currentTarget, "CLI 检查", () => requestJson("/api/lark/shared/version"))
 );
 
-$("initConfigBtn").addEventListener("click", (event) =>
-  withButton(event.currentTarget, "飞书配置初始化", () =>
+$("initConfigBtn").addEventListener("click", async (event) => {
+  const payload = await withButton(event.currentTarget, "飞书应用初始化", () =>
     requestJson("/api/lark/shared/config/init", {
       method: "POST",
       body: JSON.stringify({
@@ -165,26 +178,30 @@ $("initConfigBtn").addEventListener("click", (event) =>
         profileName: getValue("profileNameInput") || undefined
       })
     })
-  )
-);
+  );
+  setTodoStatus("createAppTodo", payload ? "done" : "warn");
+});
 
-$("startLoginBtn").addEventListener("click", (event) =>
-  withButton(event.currentTarget, "发起用户授权", () =>
+$("startLoginBtn").addEventListener("click", async (event) => {
+  const payload = await withButton(event.currentTarget, "发起用户授权", () =>
     requestJson("/api/lark/shared/auth/login/start", {
       method: "POST",
-      body: JSON.stringify({ domains: ["all"] })
+      body: JSON.stringify({ scopes: P0_REQUIRED_USER_SCOPES })
     })
-  )
-);
+  );
+  const deviceCode = findDeepValue(payload?.data?.raw, ["device_code", "deviceCode"]);
+  setInputValue("deviceCodeInput", deviceCode);
+});
 
-$("completeLoginBtn").addEventListener("click", (event) =>
-  withButton(event.currentTarget, "完成用户授权", () =>
+$("completeLoginBtn").addEventListener("click", async (event) => {
+  const payload = await withButton(event.currentTarget, "完成用户授权", () =>
     requestJson("/api/lark/shared/auth/login/complete", {
       method: "POST",
       body: JSON.stringify({ deviceCode: getValue("deviceCodeInput") })
     })
-  )
-);
+  );
+  setTodoStatus("authTodo", payload ? "done" : "warn");
+});
 
 $("authStatusBtn").addEventListener("click", (event) =>
   withButton(event.currentTarget, "授权状态", () => requestJson("/api/lark/shared/auth/status"))
@@ -194,56 +211,41 @@ $("currentUserBtn").addEventListener("click", (event) =>
   withButton(event.currentTarget, "当前授权用户", () => requestJson("/api/lark/shared/auth/current-user"))
 );
 
-$("resolveBaseBtn").addEventListener("click", async (event) => {
-  const payload = await withButton(event.currentTarget, "解析多维表格链接", () =>
-    requestJson("/api/lark/base/resolve-url", {
+$("setupTemplateBtn").addEventListener("click", async (event) => {
+  const payload = await withButton(event.currentTarget, "创建模板数据表", () =>
+    requestJson("/api/templates/wechat-draft/setup", {
       method: "POST",
-      body: JSON.stringify({ url: getValue("baseUrlInput") })
+      body: JSON.stringify({
+        baseName: getValue("baseNameInput"),
+        tableName: getValue("templateTableNameInput") || "推送草稿表"
+      })
     })
   );
-  autofillBaseCoordinates(payload);
+  if (payload) {
+    autofillTemplateCoordinates(payload);
+  }
 });
 
-$("createTemplateBtn").addEventListener("click", (event) =>
-  withButton(event.currentTarget, "创建推送草稿表", () =>
-    requestJson("/api/templates/push-draft-table", {
-      method: "POST",
-      body: JSON.stringify({
-        baseToken: getValue("baseTokenInput"),
-        tableName: "推送草稿表"
-      })
-    })
-  )
-);
-
-$("listFieldsBtn").addEventListener("click", (event) =>
-  withButton(event.currentTarget, "读取字段", () =>
-    requestJson("/api/lark/base/fields", {
+$("createWorkflowsBtn").addEventListener("click", async (event) => {
+  const payload = await withButton(event.currentTarget, "创建两条工作流", () =>
+    requestJson("/api/templates/wechat-draft/workflows", {
       method: "POST",
       body: JSON.stringify({
         baseToken: getValue("baseTokenInput"),
         tableId: getValue("tableIdInput"),
-        limit: Number(getValue("limitInput") || 200),
-        offset: Number(getValue("offsetInput") || 0)
+        tableName: getValue("templateTableNameInput") || "推送草稿表",
+        webhookUrl: getValue("webhookUrlInput"),
+        enable: true
       })
     })
-  )
-);
+  );
+  const workflows = payload?.data?.workflows || [];
+  const ok = workflows.length > 0 && workflows.every((workflow) => workflow.ok);
+  setTodoStatus("workflowTodo", ok ? "done" : "warn");
+});
 
-$("listRecordsBtn").addEventListener("click", (event) =>
-  withButton(event.currentTarget, "读取记录", () =>
-    requestJson("/api/lark/base/records", {
-      method: "POST",
-      body: JSON.stringify({
-        baseToken: getValue("baseTokenInput"),
-        tableId: getValue("tableIdInput"),
-        viewId: getValue("viewIdInput") || undefined,
-        limit: Number(getValue("limitInput") || 50),
-        offset: Number(getValue("offsetInput") || 0)
-      })
-    })
-  )
-);
+$("wechatAppIdInput").addEventListener("input", updateWechatTodos);
+$("wechatSecretInput").addEventListener("input", updateWechatTodos);
 
 copyOutputBtn.addEventListener("click", async () => {
   await navigator.clipboard.writeText(output.textContent);

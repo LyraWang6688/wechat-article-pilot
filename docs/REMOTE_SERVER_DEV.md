@@ -62,11 +62,12 @@ LARK_CLI_BIN=/absolute/path/to/lark-cli
 
 ## 飞书 CLI 初始化
 
-这些命令只需要在“真正运行后端的服务器”上完成：
+服务器只需要安装并能执行 `lark-cli`。飞书应用初始化和用户授权应通过项目网页触发后端执行，不建议用户直接在服务器终端手动跑完整流程。
+
+等价的授权命令形式是：
 
 ```bash
-lark-cli config init --new
-lark-cli auth login --domain all
+lark-cli auth login --scope "<P0 必需权限，可重复传入>" --no-wait --json
 lark-cli auth status --json --verify
 ```
 

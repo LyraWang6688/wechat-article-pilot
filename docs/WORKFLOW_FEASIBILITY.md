@@ -21,14 +21,13 @@
 
 可用节点：
 
-- `SetRecordTrigger`：监听记录字段被修改，并支持字段级条件。
-- `ChangeRecordTrigger`：新增或修改都可触发；如果希望新增记录时也触发，可用它。
+- `ChangeRecordTrigger`：新增或修改记录满足条件时触发，适合本项目“新增或者修改的记录满足条件时”的需求。
 - `HTTPClientAction`：向后端发送 HTTP 请求，支持 `method`、`url`、`headers`、`raw_body`。
 
 推荐组合：
 
 ```text
-SetRecordTrigger -> HTTPClientAction
+ChangeRecordTrigger -> HTTPClientAction
 ```
 
 推荐触发条件：
@@ -36,14 +35,19 @@ SetRecordTrigger -> HTTPClientAction
 ```json
 {
   "table_name": "推送草稿表",
-  "field_watch_info": [
+  "trigger_control_list": [],
+  "condition_list": [
     {
-      "field_name": "status",
-      "operator": "is",
-      "value": [{ "value_type": "option", "value": { "name": "ready_to_upload" } }]
+      "conjunction": "and",
+      "conditions": [
+        {
+          "field_name": "status",
+          "operator": "is",
+          "value": [{ "value_type": "option", "value": { "name": "ready_to_upload" } }]
+        }
+      ]
     }
-  ],
-  "condition_list": null
+  ]
 }
 ```
 
@@ -68,18 +72,18 @@ lark-cli base +record-get --base-token "<base_token>" --table-id "<table_id>" --
 业务需求：
 
 ```text
-后端把 status 写回 uploaded_to_wechat 或 failed 后，飞书消息通知当前操作人。
+后端把 status 写回 uploaded_to_wechat 或 failed 后，飞书消息通知当前授权用户。
 ```
 
 可用节点：
 
-- `SetRecordTrigger`：监听 `status` 字段变化。
+- `ChangeRecordTrigger`：新增或修改记录满足写回状态条件时触发。
 - `LarkMessageAction`：发送飞书消息，支持 `receiver`、`title`、`content`、`btn_list`。
 
 推荐组合：
 
 ```text
-SetRecordTrigger -> LarkMessageAction
+ChangeRecordTrigger -> LarkMessageAction
 ```
 
 推荐监听条件：
@@ -87,52 +91,52 @@ SetRecordTrigger -> LarkMessageAction
 ```json
 {
   "table_name": "推送草稿表",
-  "field_watch_info": [
+  "trigger_control_list": [],
+  "condition_list": [
     {
-      "field_name": "status",
-      "operator": "is",
-      "value": [{ "value_type": "option", "value": { "name": "uploaded_to_wechat" } }]
+      "conjunction": "and",
+      "conditions": [
+        {
+          "field_name": "status",
+          "operator": "containsAny",
+          "value": [
+            { "value_type": "option", "value": { "name": "uploaded_to_wechat" } },
+            { "value_type": "option", "value": { "name": "failed" } }
+          ]
+        }
+      ]
     }
-  ],
-  "condition_list": null
+  ]
 }
 ```
 
-失败状态可创建第二条分支或第二个通知工作流：
-
-```json
-{
-  "field_name": "status",
-  "operator": "is",
-  "value": [{ "value_type": "option", "value": { "name": "failed" } }]
-}
-```
+当前实现用同一条通知工作流覆盖 `uploaded_to_wechat` 和 `failed` 两种写回状态。
 
 接收人规则：
 
 ```text
-当前操作人
+当前授权用户
 ```
 
-注意：Workflow schema 支持 `receiver` 使用 `ref`，但“当前操作人”到底映射为哪个触发器输出字段，需要用真实 workflow 返回或实测确认。若无法稳定引用当前操作人，建议模板表增加一个人员字段，例如 `operator` 或 `notify_user`，由前端/用户填写，消息工作流引用该人员字段。
+当前实现固定使用 `auth status -> identities.user.openId` 作为 `LarkMessageAction.receiver`。P0 假设是单用户、单应用、单 Base，不共享，因此先保证闭环跑通。
 
 当前阶段补充策略：
 
 - 飞书初始化/授权后，可通过 `lark-cli auth status --json --verify` 获取当前授权用户的 `openId`、`userName`、`scope`、`tokenStatus`。
 - 源码依据：`cmd/auth/status.go` 调用 `identitydiag.Diagnose(...)` 输出 user identity 信息；`internal/auth/verify.go` 会调用 `/authen/v1/user_info` 验证用户 token。
-- 因此配置阶段可以知道“当前授权用户是谁”，并把该用户作为默认通知人参考。
-- 但 workflow 触发时的“当前操作人”是否等同于配置阶段授权用户，仍需真实 workflow 实测；多人场景后续建议增加人员字段。
+- 因此配置阶段可以知道“当前授权用户是谁”，并把该用户作为通知人。
+- 多人场景后续建议增加人员字段，不在 P0 阶段处理。
 
 ## 仍需实测确认
 
-- `SetRecordTrigger.field_watch_info.value` 对单选字段是否必须使用 `value_type=option`。
+- `ChangeRecordTrigger.condition_list.value` 对单选字段是否必须使用 `value_type=option`。
 - `$.step_trigger.recordId` 在实际工作流中的输出路径是否稳定。
-- “当前操作人”在触发器输出中是否有稳定 ref 路径。
+- `LarkMessageAction.receiver` 使用固定用户 OpenID 的 value 结构是否符合实际 workflow schema。
 - 后端写回 `status` 是否会再次触发工作流 1；需要通过条件设计避免循环。
 - 飞书工作流调用本地后端时必须使用公网可访问 URL，本地阶段需要 ngrok/frp/公网测试服务。
 
 ## 当前开发策略
 
-- 模板表自动创建暂时占位，不立刻执行 `table-create/field-create`。
-- 工作流创建先保留 JSON 模板和可行性文档。
-- 先打通后端接收 `record_id` 并读取完整记录的飞书侧闭环。
+- 模板 Base 和「推送草稿表」已支持通过接口自动创建。
+- 工作流已支持通过接口生成、创建并启用。
+- 当前优先在真实飞书环境中验证 `ChangeRecordTrigger`、`HTTPClientAction.raw_body` 和 `LarkMessageAction.receiver` 的实际返回与触发行为。

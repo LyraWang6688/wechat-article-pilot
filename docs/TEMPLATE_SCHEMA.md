@@ -58,17 +58,17 @@ status = ready_to_upload
 - 成功：后端写回 `status = uploaded_to_wechat`。
 - 失败：后端写回 `status = failed`，同时写入 `wechat_upload_result`、`missing_fields` 或 `warning_fields`。
 
-## 当前操作人通知规则
+## 当前授权用户通知规则
 
 目标规则：
 
 ```text
-飞书消息通知当前操作人
+飞书消息通知当前授权用户
 ```
 
 当前策略：
 
 - 前期飞书初始化/授权后，可通过 `lark-cli auth status --json --verify` 获取当前授权用户的 `openId` 和 `userName`。
-- 模板创建接口会返回当前授权用户信息，作为后续 workflow 通知人的默认参考。
-- Workflow 触发器是否能稳定输出“当前操作人”的 ref 仍需在真实 Base 中实测。
-- 如果不能稳定引用，再考虑新增一个人员字段作为通知接收人字段；当前创建表严格遵守 15 字段模板，不额外加字段。
+- Workflow 创建接口会固定使用当前授权用户 `openId` 作为通知接收人。
+- P0 单用户假设是一个用户一个应用一个 Base，不共享；先保证同步闭环跑通。
+- 多人协作阶段再考虑新增一个人员字段作为通知接收人字段；当前创建表严格遵守 15 字段模板，不额外加字段。

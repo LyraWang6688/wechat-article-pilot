@@ -8,6 +8,23 @@ GitHub 仓库地址：
 https://github.com/LyraWang6688/wechat-article-pilot
 ```
 
+## 0. AI 接手必读
+
+如果其他 AI 或开发者接手本项目，请先阅读以下文档：
+
+- `docs/LARK_CLI_INIT_CONTEXT.md`：说明飞书应用初始化和用户授权后，系统实际能拿到哪些信息，以及后续如何使用这些信息。
+- `docs/TEMPLATE_SCHEMA.md`：说明「推送草稿表」的 15 个固定字段。
+- `docs/WORKFLOW_FEASIBILITY.md`：说明两条 Base Workflow 的可行性和当前实现策略。
+- `docs/REMOTE_SERVER_DEV.md`：说明服务器开发执行机模式。
+
+关于飞书初始化和授权，核心结论是：
+
+- `config init --new` 后，CLI 会在当前执行机器保存应用上下文，例如 `appId`、`brand`、`defaultAs`，以及由 CLI 安全保存的 `appSecret`。
+- `auth login` 完成后，CLI 会在当前执行机器保存用户 token，并可通过 `auth status --json --verify` 读取当前授权用户的 `openId`、`userName`、`scope`、`tokenStatus`、`expiresAt` 等诊断信息。
+- 业务系统不应读取或依赖明文 `appSecret`、`accessToken`、`refreshToken`。
+- 后续 Base 创建、记录读取、状态写回、Workflow 创建都继续通过当前机器上的 `lark-cli base +...` 执行。
+- P0 单用户场景可把 `auth status -> identities.user.openId` 作为默认通知人；多人协作场景建议在模板表中增加人员字段，不要只依赖 `recordModifiedUser`。
+
 ## 1. 项目定位
 
 本项目是一个中间桥梁，用于连接：
@@ -54,7 +71,7 @@ https://github.com/LyraWang6688/wechat-article-pilot
 当前实现状态：
 
 - 已有 `lark-cli config init --new` 引导式初始化入口。
-- 已有 `lark-cli auth login --domain all --no-wait --json` split-flow 授权入口。
+- 已有 `lark-cli auth login --scope <P0 必需权限> --no-wait --json` split-flow 授权入口，默认申请 Base 创建、字段读取、记录读写、Workflow 创建/启用所需权限。
 - 已有授权完成与状态检查接口。
 
 注意：
@@ -116,11 +133,11 @@ ready_to_upload / uploaded_to_wechat / failed
 
 可行实现：
 
-- 触发器：优先 `SetRecordTrigger`，监听 `status` 字段变更。
+- 触发器：`ChangeRecordTrigger`，表示新增或修改记录满足条件时触发。
 - 动作：`HTTPClientAction`。
 - 请求方式：`POST`。
 - 请求 URL：部署后的后端 webhook 地址。
-- 请求体：通过 `text + ref` 拼接 JSON，引用 `$.trigger_step.recordId`。
+- 请求体：通过 `text + ref` 拼接 JSON，引用 `$.step_trigger.recordId`。
 
 建议请求体：
 
@@ -147,18 +164,20 @@ workflow JSON 中不能直接写固定 `recxxx`，应使用 ref：
 
 业务目标：
 
-- 当后端写回 `status = uploaded_to_wechat` 或 `status = failed` 后，飞书自动发消息通知当前操作人。
+- 当后端写回 `status = uploaded_to_wechat` 或 `status = failed` 后，飞书自动发消息通知当前授权用户。
+- P0 单用户假设是一个用户一个应用一个 Base，不共享；先固定通知初始化并授权的用户，后续多人协作再迭代人员字段或记录操作人策略。
 
 可行实现：
 
-- 触发器：`SetRecordTrigger`，监听 `status` 字段。
+- 触发器：`ChangeRecordTrigger`，表示新增或修改记录满足写回状态条件时触发。
 - 动作：`LarkMessageAction`。
 - 消息内容引用触发记录中的标题、同步状态、错误信息、记录链接等字段。
 
 注意：
 
 - `LarkMessageAction.receiver` 需要明确接收人。
-- 接收人可以是固定用户，也可以来自记录中的人员字段。
+- 当前实现使用 `auth status -> identities.user.openId` 生成固定用户接收人。
+- 接收人后续可以改为记录中的人员字段。
 - 如果用记录中的人员字段，需要先确认字段 ID，并使用 `$.step_trigger.fldxxxx` 形式引用。
 
 ### 4.3 微信公众号配置
@@ -267,13 +286,12 @@ lark-cli base +workflow-enable --base-token "<base_token>" --workflow-id "<workf
 
 可用节点：
 
-- `SetRecordTrigger`：字段被修改且满足条件时触发。
-- `ChangeRecordTrigger`：新增或修改都可触发。
+- `ChangeRecordTrigger`：新增或修改记录满足条件时触发。
 - `HTTPClientAction`：向后端发送 HTTP 请求。
 
 关键字段：
 
-- `SetRecordTrigger.data.field_watch_info`
+- `ChangeRecordTrigger.data.condition_list`
 - `HTTPClientAction.data.method`
 - `HTTPClientAction.data.url`
 - `HTTPClientAction.data.headers`
@@ -285,17 +303,17 @@ lark-cli base +workflow-enable --base-token "<base_token>" --workflow-id "<workf
 需求：
 
 ```text
-写回状态更新 -> 发送飞书消息给用户
+写回状态更新 -> 发送飞书消息给当前授权用户
 ```
 
 可用节点：
 
-- `SetRecordTrigger`：监听 `同步状态` 或 `错误信息` 字段变化。
+- `ChangeRecordTrigger`：新增或修改记录满足写回状态条件时触发。
 - `LarkMessageAction`：发送飞书消息。
 
 关键字段：
 
-- `SetRecordTrigger.data.field_watch_info`
+- `ChangeRecordTrigger.data.condition_list`
 - `LarkMessageAction.data.receiver`
 - `LarkMessageAction.data.title`
 - `LarkMessageAction.data.content`
@@ -303,9 +321,9 @@ lark-cli base +workflow-enable --base-token "<base_token>" --workflow-id "<workf
 
 ### 6.3 需要实测的点
 
-- workflow 创建时，`field_watch_info.value` 对单选字段是否必须用 `option`，还是文本字段可用 `text`。
+- workflow 创建时，`condition_list` 对单选字段是否必须用 `value_type=option`，还是文本字段可用 `text`。
 - `HTTPClientAction.raw_body` 中 `$.step_trigger.recordId` 的实际输出是否稳定。
-- `LarkMessageAction.receiver` 是否能直接引用人员字段。
+- `LarkMessageAction.receiver` 使用固定授权用户 OpenID 是否符合实际 workflow schema。
 - 后端回写状态后是否会触发第二个工作流，以及是否需要避免循环触发。
 
 ## 7. 仍需确认的信息
@@ -317,15 +335,15 @@ lark-cli base +workflow-enable --base-token "<base_token>" --workflow-id "<workf
 - 触发条件：`status = ready_to_upload`。
 - 写回字段：`status`。
 - 写回值：成功 `uploaded_to_wechat`，失败 `failed`。
-- 飞书消息通知接收人规则：当前操作人。
+- 飞书消息通知接收人规则：P0 固定通知当前授权用户。
 - 微信侧：当前阶段先不考虑。
 
 仍需确认：
 
 - 本地联调用的公网 webhook 地址：本地可先用 ngrok / frp / 公网测试服务。
 - 服务器部署后的正式 webhook 域名。
-- Workflow 中“当前操作人”的稳定引用路径；前期可通过 `auth status --json --verify` 获取当前授权用户 `openId/userName` 作为默认通知人参考。如果无法稳定引用，再考虑增加人员字段作为通知接收人。
-- `SetRecordTrigger` 对单选字段 `status` 的实际 value 结构，需要在真实 Base 中实测。
+- Workflow 中固定用户接收人的实际 value 结构仍需在真实 Base 中实测；多人协作阶段再考虑增加人员字段作为通知接收人。
+- `ChangeRecordTrigger.condition_list` 对单选字段 `status` 的实际 value 结构，需要在真实 Base 中实测。
 
 ## 8. 下一步代码修改路线
 

@@ -12,8 +12,24 @@ export type AuthLoginStartResult = {
   raw: unknown;
   stdout: string;
   stderr: string;
+  scopes: string[];
+  domains: string[];
   hint: string;
 };
+
+export const P0_REQUIRED_USER_SCOPES = [
+  "base:app:create",
+  "base:table:read",
+  "base:table:create",
+  "base:table:update",
+  "base:table:delete",
+  "base:field:read",
+  "base:record:read",
+  "base:record:create",
+  "base:record:update",
+  "base:workflow:create",
+  "base:workflow:update"
+] as const;
 
 export class LarkSharedService {
   constructor(private readonly runner: LarkCliRunner) {}
@@ -71,13 +87,20 @@ export class LarkSharedService {
     };
   }
 
-  async startUserLogin(domains = ["all"]) {
+  async startUserLogin(input: { domains?: string[]; scopes?: string[] } = {}) {
     const args = ["auth", "login", "--no-wait", "--json"];
+    const scopes = input.scopes?.length ? input.scopes : [...P0_REQUIRED_USER_SCOPES];
+    const domains = input.domains || [];
+
+    if (scopes.length) {
+      args.push("--scope", scopes.join(" "));
+    }
     domains.forEach((domain) => {
       args.push("--domain", domain);
     });
 
     logger.info("lark_shared_auth_login_start", {
+      scopes,
       domains
     });
     const result = await this.runner.run<unknown>(args, {
@@ -86,12 +109,15 @@ export class LarkSharedService {
     });
 
     logger.info("lark_shared_auth_login_started", {
+      scopes,
       domains
     });
     return {
       raw: result.json,
       stdout: result.stdout,
       stderr: result.stderr,
+      scopes,
+      domains,
       hint: "请在前端展示返回的 verification_uri / user_code / qr 相关字段，用户完成授权后再调用完成授权接口。"
     } satisfies AuthLoginStartResult;
   }

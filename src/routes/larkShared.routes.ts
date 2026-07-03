@@ -40,8 +40,11 @@ larkSharedRouter.post(
 larkSharedRouter.post(
   "/auth/login/start",
   asyncHandler(async (req, res) => {
-    const { domains } = req.body as { domains?: string[] };
-    const data = await services.larkShared.startUserLogin(domains?.length ? domains : ["all"]);
+    const { domains, scopes } = req.body as { domains?: string[]; scopes?: string[] };
+    const data = await services.larkShared.startUserLogin({
+      domains,
+      scopes
+    });
     res.json({ ok: true, data });
   })
 );

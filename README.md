@@ -8,9 +8,9 @@
 
 - 轻量前端配置页
 - 飞书 CLI 初始化和用户授权
-- Base 链接解析、字段读取、记录读取
-- 推送草稿表模板创建
-- Workflow webhook 占位
+- 自动创建模板 Base 和推送草稿表
+- 自动生成并创建 Workflow
+- Workflow webhook 接收 `record_id`
 - 通过 `record_id` 读取一条 Base 记录的完整数据
 
 ## 技术栈
@@ -55,6 +55,7 @@ https://draft-api.bamamei.online -> http://127.0.0.1:3010
 详细流程见：
 
 - [服务器远程开发流程](docs/REMOTE_SERVER_DEV.md)
+- [飞书 CLI 初始化与授权上下文](docs/LARK_CLI_INIT_CONTEXT.md)
 
 ## 本地临时运行
 
@@ -90,13 +91,13 @@ DEFAULT_TABLE_ID=tblxxx
 2. 检查服务：确认 Express 后端可用。
 3. 检查 CLI：后端执行 `lark-cli --version`。
 4. 引导式配置初始化：后端执行 `lark-cli config init --new`。
-5. 用户授权：后端执行 `lark-cli auth login --domain all --no-wait --json`。
+5. 用户授权：后端执行 `lark-cli auth login --scope <P0 必需权限> --no-wait --json`，授权 Base 创建、字段读取、记录读写、Workflow 创建/启用所需权限。
 6. 完成授权：用户扫码/浏览器确认后，把 `device_code` 填回页面。
-7. 绑定 Base：后端执行 `lark-cli base +url-resolve --url <url> --format json`。
-8. 创建模板表：后端执行 `lark-cli base +table-create --fields <template_fields>`。
-9. 读取字段：后端执行 `lark-cli base +field-list`。
-10. 读取记录列表：后端执行 `lark-cli base +record-list --format json`。
-11. 读取单条记录：后端执行 `lark-cli base +record-get --record-id <record_id> --format json`。
+7. 创建模板数据表：后端执行 `lark-cli base +base-create --table-name "推送草稿表" --fields <template_fields>`。
+8. 创建工作流：后端执行 `lark-cli base +workflow-create` 和 `+workflow-enable`。
+9. Workflow 触发：当新增或修改的记录满足 `status = ready_to_upload` 时，向后端 webhook 发送 `record_id`。
+10. 后端读取记录：执行 `lark-cli base +record-get --record-id <record_id> --format json`。
+11. 后端写回状态：执行 `lark-cli base +record-upsert`，成功写回 `uploaded_to_wechat`，失败写回 `failed`。
 
 ## 关于 config init --new
 
@@ -106,23 +107,23 @@ DEFAULT_TABLE_ID=tblxxx
 
 ## 模板与 Workflow
 
-模板表已支持通过接口自动创建，字段结构已沉淀到文档：
+模板 Base 和推送草稿表已支持通过接口自动创建，字段结构已沉淀到文档：
 
 - [推送草稿表模板结构](docs/TEMPLATE_SCHEMA.md)
 - [Workflow 可行性依据](docs/WORKFLOW_FEASIBILITY.md)
+- [飞书初始化与授权后可用信息](docs/LARK_CLI_INIT_CONTEXT.md)
 - [项目说明书](PROJECT_BRIEF.md)
 
 推送草稿表触发规则：
 
 ```text
-status = ready_to_upload
+新增或修改的记录满足 status = ready_to_upload
 ```
 
 写回规则：
 
 ```text
-成功：status = uploaded_to_wechat
-失败：status = failed
+新增或修改的记录满足 status = uploaded_to_wechat / failed
 ```
 
 当前 webhook：
@@ -170,16 +171,30 @@ POST /api/lark/base/fields
 POST /api/lark/base/records
 POST /api/lark/base/records/get
 POST /api/lark/base/records/upsert
+POST /api/templates/wechat-draft/setup
+POST /api/templates/wechat-draft/workflows
 POST /api/templates/push-draft-table
 POST /api/webhooks/feishu/base-record-sync
 ```
 
-创建模板表请求示例：
+一键创建模板 Base 和推送草稿表请求示例：
+
+```json
+{
+  "baseName": "公众号文章同步工作台",
+  "tableName": "推送草稿表"
+}
+```
+
+创建两条 Workflow 请求示例：
 
 ```json
 {
   "baseToken": "bascnxxx",
-  "tableName": "推送草稿表"
+  "tableId": "tblxxx",
+  "tableName": "推送草稿表",
+  "webhookUrl": "https://draft-api.bamamei.online/api/webhooks/feishu/base-record-sync",
+  "enable": true
 }
 ```
 
