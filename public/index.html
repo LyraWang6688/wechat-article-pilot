@@ -76,18 +76,14 @@
         <div class="card-header">
           <div>
             <h2>1. 飞书应用初始化</h2>
-            <p>先创建新的飞书应用，再完成授权，系统会自动进入后续初始化。</p>
           </div>
-          <span class="status-badge active">推荐先完成</span>
         </div>
-        <div class="todo-list">
-          <article class="todo-card recommended-card">
-            <span class="recommend-label">推荐方式</span>
+        <div class="setup-action-grid">
+          <article class="todo-card setup-action-card">
             <div class="todo-title">
               <span id="createAppTodo" class="todo-dot pending"></span>
               <div>
                 <h3>创建新应用</h3>
-                <p>适合首次使用。系统会打开飞书引导链接，按页面提示完成创建即可。</p>
               </div>
             </div>
             <div class="actions todo-actions">
@@ -95,23 +91,19 @@
             </div>
           </article>
 
-          <article class="todo-card">
+          <article class="todo-card setup-action-card setup-action-card-wide">
             <div class="todo-title">
               <span id="authTodo" class="todo-dot pending"></span>
               <div>
                 <h3>用户授权</h3>
-                <p>授权后，系统才能继续自动创建工作台并处理推送结果。</p>
               </div>
             </div>
-            <details class="permission-panel compact-benefits">
-              <summary>查看授权后系统会自动完成什么</summary>
-              <ul>
-                <li>创建公众号文章同步工作台和推送草稿表</li>
-                <li>读取需要推送的文章内容</li>
-                <li>写回推送成功或失败的结果</li>
-                <li>创建自动推送和结果提醒流程</li>
-              </ul>
-            </details>
+            <ul class="benefit-grid" aria-label="授权后系统会自动完成">
+              <li>创建公众号文章同步工作台和推送草稿表</li>
+              <li>读取需要推送的文章内容</li>
+              <li>写回推送成功或失败的结果</li>
+              <li>创建自动推送和结果提醒流程</li>
+            </ul>
             <div class="actions todo-actions">
               <button id="startLoginBtn">开始授权</button>
             </div>
