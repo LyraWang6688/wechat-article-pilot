@@ -283,6 +283,9 @@ function setStepStatus(id, status) {
   saveProgressStatus(stored);
   updateProgressOverview();
   updateWizardProgressHighlight();
+  if (id === "progressTable") {
+    updateAgentWorkspaceConfig();
+  }
 }
 
 function setTodoStatus(id, status) {
@@ -487,7 +490,8 @@ function updateAgentWorkspaceConfig(state = getWorkspaceState()) {
     return;
   }
   const configText = buildAgentWorkspaceConfig(state);
-  card.hidden = !configText;
+  const isTableReady = Boolean($("progressTable")?.classList.contains("done"));
+  card.hidden = !configText || !isTableReady;
   text.textContent = configText;
   requestAnimationFrame(syncWizardHeight);
 }
