@@ -12,6 +12,7 @@ let authCompletePollTimer = null;
 let currentWizardPanel = 0;
 let isAuthCompleting = false;
 let isAuthReadyForBitable = false;
+let hasEnteredBitablePanel = false;
 
 const TODO_PROGRESS_MAP = {
   createAppTodo: "progressCreateApp",
@@ -362,6 +363,9 @@ function updateProgressOverview() {
 function setWizardPanel(index, options = {}) {
   const nextIndex = Math.max(0, Math.min(WIZARD_PANELS.length - 1, index));
   currentWizardPanel = nextIndex;
+  if (nextIndex === 1) {
+    hasEnteredBitablePanel = true;
+  }
   document.querySelectorAll("[data-wizard-panel]").forEach((panel) => {
     panel.hidden = Number(panel.dataset.wizardPanel) !== nextIndex;
   });
@@ -701,7 +705,7 @@ async function runBitableInitialization() {
 function maybeStartBitableInitialization() {
   const workspace = getWorkspaceState();
   if (
-    currentWizardPanel !== 1 ||
+    !hasEnteredBitablePanel ||
     !isAuthReadyForBitable ||
     isBitableInitializing ||
     (workspace.baseToken && workspace.tableId)

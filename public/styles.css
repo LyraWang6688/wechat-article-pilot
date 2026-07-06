@@ -746,6 +746,8 @@ h3 {
 
 .agent-config-box pre {
   margin: 0;
+  padding: 0;
+  background: transparent;
   color: var(--color-text-main);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-base);
