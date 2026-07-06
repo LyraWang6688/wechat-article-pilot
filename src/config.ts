@@ -17,5 +17,6 @@ export const appConfig = {
   logCliStdout: process.env.LOG_CLI_STDOUT !== "false",
   logCliStdoutMaxChars: Number(process.env.LOG_CLI_STDOUT_MAX_CHARS || 4000),
   logCliStderrMaxChars: Number(process.env.LOG_CLI_STDERR_MAX_CHARS || 4000),
+  wechatApiTimeoutMs: Number(process.env.WECHAT_API_TIMEOUT_MS || 120000),
   publicDir: path.resolve(__dirname, "..", "public")
 };

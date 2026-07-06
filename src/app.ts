@@ -13,6 +13,7 @@ import { larkSharedRouter } from "./routes/larkShared.routes.js";
 import { systemRouter } from "./routes/system.routes.js";
 import { templateRouter } from "./routes/template.routes.js";
 import { logger } from "./utils/logger.js";
+import { integrationConfigRouter } from "./routes/integrationConfig.routes.js";
 
 export function createApp() {
   const app = express();
@@ -32,6 +33,7 @@ export function createApp() {
   app.use("/api/system", systemRouter);
   app.use("/api/lark/shared", larkSharedRouter);
   app.use("/api/lark/base", larkBaseRouter);
+  app.use("/api/integrations", integrationConfigRouter);
   app.use("/api/templates", templateRouter);
   app.use("/api/webhooks/feishu", feishuWebhookRouter);
 

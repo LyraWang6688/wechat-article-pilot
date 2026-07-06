@@ -559,6 +559,16 @@ h3 {
   justify-content: flex-start;
 }
 
+.wechat-actions {
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+}
+
+.wechat-actions .field-help {
+  flex: 1 1 260px;
+}
+
 .wizard-panel[data-wizard-panel="0"]:not([hidden]) {
   display: flex;
   flex-direction: column;

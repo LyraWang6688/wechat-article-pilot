@@ -1,8 +1,18 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { appConfig } from "../config.js";
 import { HttpError } from "../errors/HttpError.js";
 import type { PushDraftStatus } from "../templates/pushDraftTable.js";
 import { logger } from "../utils/logger.js";
+import { IntegrationConfigService } from "./integrationConfig.service.js";
 import { LarkBaseService } from "./larkBase.service.js";
+import {
+  normalizePushDraftRecord,
+  type NormalizedPushDraftRecord,
+  validatePushDraftForWechat
+} from "./pushDraftRecord.service.js";
+import { WechatService } from "./wechat.service.js";
 
 const IMAGE_FIELD_HINT = /image|img|picture|photo|cover|attachment|file|media|mime|url|token|图片|封面|附件/i;
 const MAX_DEBUG_FIELDS = 80;
@@ -26,7 +36,11 @@ type RecordValueDebugSummary = {
 };
 
 export class SyncArticleService {
-  constructor(private readonly larkBase: LarkBaseService) {}
+  constructor(
+    private readonly larkBase: LarkBaseService,
+    private readonly wechat: WechatService,
+    private readonly integrationConfig: IntegrationConfigService
+  ) {}
 
   async fetchDraftRecord(input: FeishuRecordSyncInput) {
     const baseToken = input.baseToken || appConfig.defaultBaseToken;
@@ -80,6 +94,8 @@ export class SyncArticleService {
       ...input
     });
     const draftRecord = await this.fetchDraftRecord(input);
+    const recordDebugSummary = summarizeRecordRaw(draftRecord.record.raw);
+    const normalizedRecord = normalizePushDraftRecord(draftRecord.record.raw);
     let writeBack:
       | {
           status: PushDraftStatus;
@@ -113,31 +129,199 @@ export class SyncArticleService {
         recordId: draftRecord.recordId,
         writeBackStatus: input.writeBackStatus
       });
+
+      logger.info("sync_article_handle_success", {
+        event: input.event || "wechat_draft_sync",
+        baseToken: draftRecord.baseToken,
+        tableId: draftRecord.tableId,
+        recordId: draftRecord.recordId,
+        writeBackStatus: input.writeBackStatus
+      });
+      logger.info("sync_article_record_debug_summary", {
+        baseToken: draftRecord.baseToken,
+        tableId: draftRecord.tableId,
+        recordId: draftRecord.recordId,
+        recordDebugSummary
+      });
+      return {
+        event: input.event || "wechat_draft_sync",
+        received: true,
+        draftRecord,
+        normalizedRecord,
+        recordDebugSummary,
+        writeBack,
+        nextStep: "已执行飞书侧联调写回；未调用微信接口。"
+      };
     }
 
-    logger.info("sync_article_handle_success", {
-      event: input.event || "wechat_draft_sync",
-      baseToken: draftRecord.baseToken,
-      tableId: draftRecord.tableId,
-      recordId: draftRecord.recordId,
-      writeBackStatus: input.writeBackStatus
-    });
-    const recordDebugSummary = summarizeRecordRaw(draftRecord.record.raw);
     logger.info("sync_article_record_debug_summary", {
       baseToken: draftRecord.baseToken,
       tableId: draftRecord.tableId,
       recordId: draftRecord.recordId,
       recordDebugSummary
     });
+    const syncResult = await this.syncWechatDraft({
+      baseToken: draftRecord.baseToken,
+      tableId: draftRecord.tableId,
+      recordId: draftRecord.recordId,
+      record: normalizedRecord
+    });
+
+    logger.info("sync_article_handle_success", {
+      event: input.event || "wechat_draft_sync",
+      baseToken: draftRecord.baseToken,
+      tableId: draftRecord.tableId,
+      recordId: draftRecord.recordId,
+      status: syncResult.status,
+      draftMediaId: "draftMediaId" in syncResult ? syncResult.draftMediaId : undefined
+    });
     return {
       event: input.event || "wechat_draft_sync",
       received: true,
       draftRecord,
+      normalizedRecord,
       recordDebugSummary,
-      writeBack,
-      nextStep: "微信侧暂未接入；当前 webhook 只验证飞书侧 record-get 和可选状态写回。"
+      syncResult,
+      writeBack: syncResult.writeBack,
+      nextStep: "已接入微信图文草稿链路：飞书附件封面 -> 微信永久图片素材 -> 微信草稿。"
     };
   }
+
+  private async syncWechatDraft(input: {
+    baseToken: string;
+    tableId: string;
+    recordId: string;
+    record: NormalizedPushDraftRecord;
+  }) {
+    const validation = validatePushDraftForWechat(input.record);
+    if (validation.missingFields.length > 0) {
+      return this.writeFailure(input, `缺少或不满足必填字段：${validation.missingFields.join("；")}`, validation);
+    }
+
+    let tempDir: string | undefined;
+    try {
+      tempDir = await mkdtemp(path.join(os.tmpdir(), "wechat-cover-"));
+      const coverImage = input.record.coverImage;
+      if (!coverImage) {
+        return this.writeFailure(input, "缺少封面附件 file_token", {
+          missingFields: ["cover_image_url.file_token"],
+          warningFields: validation.warningFields
+        });
+      }
+
+      const coverPath = path.join(tempDir, sanitizeFileName(coverImage.name));
+      const wechatCredentials = await this.integrationConfig.getWechatCredentials(input.baseToken, input.tableId);
+      const downloadResult = await this.larkBase.downloadRecordAttachment({
+        baseToken: input.baseToken,
+        tableId: input.tableId,
+        recordId: input.recordId,
+        fileToken: coverImage.fileToken,
+        outputPath: coverPath
+      });
+      const material = await this.wechat.uploadPermanentImage({
+        credentials: wechatCredentials,
+        filePath: downloadResult.outputPath,
+        fileName: coverImage.name
+      });
+      const draft = await this.wechat.addDraftArticle({
+        title: input.record.title || "",
+        author: input.record.author,
+        digest: input.record.digest,
+        content: input.record.content_html || "",
+        thumbMediaId: material.mediaId,
+        credentials: wechatCredentials
+      });
+      const resultMessage = [
+        "微信图文草稿创建成功",
+        `cover_media_id=${material.mediaId}`,
+        `draft_media_id=${draft.mediaId}`,
+        material.url ? `cover_url=${material.url}` : undefined,
+        validation.warningFields.length ? `warnings=${validation.warningFields.join("；")}` : undefined
+      ]
+        .filter(Boolean)
+        .join("；");
+      const writeBackResult = await this.larkBase.upsertRecord(
+        input.baseToken,
+        input.tableId,
+        {
+          status: "uploaded_to_wechat",
+          wechat_draft_media_id: draft.mediaId,
+          wechat_upload_result: resultMessage,
+          missing_fields: "",
+          warning_fields: validation.warningFields.join("；")
+        },
+        input.recordId
+      );
+
+      return {
+        status: "uploaded_to_wechat" as PushDraftStatus,
+        coverMediaId: material.mediaId,
+        draftMediaId: draft.mediaId,
+        material,
+        draft,
+        validation,
+        writeBack: {
+          status: "uploaded_to_wechat" as PushDraftStatus,
+          result: writeBackResult
+        }
+      };
+    } catch (error) {
+      logger.error("sync_article_wechat_draft_failed", {
+        baseToken: input.baseToken,
+        tableId: input.tableId,
+        recordId: input.recordId,
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      return this.writeFailure(input, error instanceof Error ? error.message : String(error), validation);
+    } finally {
+      if (tempDir) {
+        await rm(tempDir, {
+          recursive: true,
+          force: true
+        });
+      }
+    }
+  }
+
+  private async writeFailure(
+    input: {
+      baseToken: string;
+      tableId: string;
+      recordId: string;
+    },
+    message: string,
+    validation: {
+      missingFields: string[];
+      warningFields: string[];
+    }
+  ) {
+    const result = await this.larkBase.upsertRecord(
+      input.baseToken,
+      input.tableId,
+      {
+        status: "failed",
+        wechat_upload_result: message,
+        missing_fields: validation.missingFields.join("；"),
+        warning_fields: validation.warningFields.join("；")
+      },
+      input.recordId
+    );
+
+    return {
+      status: "failed" as PushDraftStatus,
+      error: message,
+      validation,
+      writeBack: {
+        status: "failed" as PushDraftStatus,
+        result
+      }
+    };
+  }
+}
+
+function sanitizeFileName(fileName: string) {
+  return fileName.replace(/[<>:"/\\|?*\x00-\x1F]/g, "_") || "cover-image";
 }
 
 function summarizeRecordRaw(raw: unknown) {

@@ -55,7 +55,7 @@
             <span class="progress-dot"></span>
             <div>
               <div class="step-row"><strong>微信信息</strong><span class="status-badge step-badge">待配置</span></div>
-              <small>AppID 和 AppSecret 预留</small>
+              <small>绑定当前工作台对应的公众号</small>
             </div>
           </li>
         </ol>
@@ -160,9 +160,9 @@
         <div class="card-header">
           <div>
             <h2>3. 微信公众号信息</h2>
-            <p>当前阶段先收集配置项，后续接入 access_token、永久素材和草稿接口。</p>
+            <p>公众号信息会绑定到当前飞书多维表格，后端同步时按这组绑定调用微信接口。</p>
           </div>
-          <span class="status-badge pending">预留配置</span>
+          <span class="status-badge pending">待绑定</span>
         </div>
         <div class="todo-list">
           <article class="todo-card">
@@ -175,7 +175,7 @@
             </div>
             <label>
               微信 AppID
-              <input id="wechatAppIdInput" placeholder="下一阶段使用" />
+              <input id="wechatAppIdInput" placeholder="请输入微信公众号 AppID" />
               <small class="field-help">获取路径：微信公众平台 → 设置与开发 → 基本配置。</small>
             </label>
           </article>
@@ -189,10 +189,14 @@
             </div>
             <label>
               微信 AppSecret
-              <input id="wechatSecretInput" type="password" placeholder="下一阶段仅后端保存" />
+              <input id="wechatSecretInput" type="password" placeholder="请输入微信公众号 AppSecret" />
               <small class="field-help">敏感凭证仅用于后端调用微信接口，页面不会明文展示。</small>
             </label>
           </article>
+        </div>
+        <div class="actions wechat-actions">
+          <span id="wechatBindingStatus" class="field-help">请先完成多维表格初始化，再保存公众号信息。</span>
+          <button id="saveWechatConfigBtn" type="button">保存公众号信息</button>
         </div>
       </section>
       </div>

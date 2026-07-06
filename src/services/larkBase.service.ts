@@ -17,6 +17,14 @@ export type BaseRecordGetInput = {
   fieldIds?: string[];
 };
 
+export type BaseRecordAttachmentDownloadInput = {
+  baseToken: string;
+  tableId: string;
+  recordId: string;
+  fileToken: string;
+  outputPath: string;
+};
+
 export type BaseTableCreateInput = {
   baseToken: string;
   name: string;
@@ -257,6 +265,52 @@ export class LarkBaseService {
       raw: result.json,
       stdout: result.stdout,
       stderr: result.stderr
+    };
+  }
+
+  async downloadRecordAttachment(input: BaseRecordAttachmentDownloadInput) {
+    const args = [
+      "base",
+      "+record-download-attachment",
+      "--base-token",
+      input.baseToken,
+      "--table-id",
+      input.tableId,
+      "--record-id",
+      input.recordId,
+      "--file-token",
+      input.fileToken,
+      "--output",
+      input.outputPath,
+      "--overwrite",
+      "--format",
+      "json"
+    ];
+
+    logger.info("base_record_attachment_download_start", {
+      baseToken: input.baseToken,
+      tableId: input.tableId,
+      recordId: input.recordId,
+      fileToken: input.fileToken,
+      outputPath: input.outputPath
+    });
+    const result = await this.runner.run<unknown>(args, {
+      expectJson: true,
+      timeoutMs: 5 * 60 * 1000
+    });
+
+    logger.info("base_record_attachment_download_success", {
+      baseToken: input.baseToken,
+      tableId: input.tableId,
+      recordId: input.recordId,
+      fileToken: input.fileToken,
+      outputPath: input.outputPath
+    });
+    return {
+      raw: result.json,
+      stdout: result.stdout,
+      stderr: result.stderr,
+      outputPath: input.outputPath
     };
   }
 

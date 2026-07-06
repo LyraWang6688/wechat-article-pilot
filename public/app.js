@@ -386,6 +386,7 @@ function getWebhookUrl() {
 
 function saveWorkspaceState(state) {
   sessionStorage.setItem(WORKSPACE_STATE_KEY, JSON.stringify(state));
+  refreshWechatBindingStatus();
 }
 
 function getWorkspaceState() {
@@ -723,6 +724,88 @@ function updateWechatTodos() {
   setStepStatus("progressWechat", hasAppId && hasSecret ? "done" : hasAppId || hasSecret ? "active" : "pending");
 }
 
+function setWechatBindingStatus(message, status = "pending") {
+  const statusElement = $("wechatBindingStatus");
+  if (statusElement) {
+    statusElement.textContent = message;
+  }
+  if (status === "done") {
+    setTodoStatus("wechatAppIdTodo", "done");
+    setTodoStatus("wechatSecretTodo", "done");
+    setStepStatus("progressWechat", "done");
+  } else if (status === "warn") {
+    setStepStatus("progressWechat", "warn");
+  }
+}
+
+async function refreshWechatBindingStatus() {
+  const workspace = getWorkspaceState();
+  if (!workspace.baseToken || !workspace.tableId) {
+    setWechatBindingStatus("请先完成多维表格初始化，再保存公众号信息。");
+    return;
+  }
+
+  try {
+    const payload = await requestJson(
+      `/api/integrations/wechat-binding?baseToken=${encodeURIComponent(workspace.baseToken)}&tableId=${encodeURIComponent(workspace.tableId)}`
+    );
+    if (!payload.data) {
+      setWechatBindingStatus("当前飞书工作台尚未绑定微信公众号信息。");
+      return;
+    }
+    setInputValue("wechatAppIdInput", payload.data.wechatAppId);
+    if ($("wechatSecretInput")) {
+      $("wechatSecretInput").value = "";
+      $("wechatSecretInput").placeholder = "已保存，留空表示不在页面回显";
+    }
+    setWechatBindingStatus(`已绑定公众号 AppID：${payload.data.wechatAppId}，对应当前飞书工作台。`, "done");
+  } catch (error) {
+    showResult("读取公众号绑定状态失败", error);
+    setWechatBindingStatus("读取公众号绑定状态失败，请查看后端日志。", "warn");
+  }
+}
+
+async function saveWechatConfig(button) {
+  const workspace = getWorkspaceState();
+  const wechatAppId = getValue("wechatAppIdInput");
+  const wechatAppSecret = getValue("wechatSecretInput");
+
+  if (!workspace.baseToken || !workspace.tableId) {
+    setWechatBindingStatus("请先完成多维表格初始化，再保存公众号信息。", "warn");
+    return;
+  }
+  if (!wechatAppId || !wechatAppSecret) {
+    setWechatBindingStatus("请填写 AppID 和 AppSecret 后再保存。", "warn");
+    updateWechatTodos();
+    return;
+  }
+
+  const payload = await withButton(button, "保存公众号信息", () =>
+    requestJson("/api/integrations/wechat-binding", {
+      method: "POST",
+      body: JSON.stringify({
+        baseToken: workspace.baseToken,
+        tableId: workspace.tableId,
+        baseName: workspace.baseName,
+        tableName: workspace.tableName,
+        wechatAppId,
+        wechatAppSecret
+      })
+    })
+  );
+
+  if (!payload) {
+    setWechatBindingStatus("公众号信息保存失败，请查看技术详情。", "warn");
+    return;
+  }
+
+  if ($("wechatSecretInput")) {
+    $("wechatSecretInput").value = "";
+    $("wechatSecretInput").placeholder = "已保存，留空表示不在页面回显";
+  }
+  setWechatBindingStatus(`已绑定公众号 AppID：${payload.data?.wechatAppId || wechatAppId}，对应当前飞书工作台。`, "done");
+}
+
 $("initConfigBtn").addEventListener("click", async (event) => {
   const linkUrl = event.currentTarget.dataset.linkUrl;
   if (linkUrl) {
@@ -773,6 +856,7 @@ $("startLoginBtn").addEventListener("click", async (event) => {
 
 $("wechatAppIdInput").addEventListener("input", updateWechatTodos);
 $("wechatSecretInput").addEventListener("input", updateWechatTodos);
+$("saveWechatConfigBtn").addEventListener("click", (event) => saveWechatConfig(event.currentTarget));
 
 $("wizardPrevBtn").addEventListener("click", () => setWizardPanel(currentWizardPanel - 1));
 $("wizardNextBtn").addEventListener("click", () => setWizardPanel(currentWizardPanel + 1));
@@ -790,3 +874,4 @@ window.addEventListener("resize", syncWizardHeight);
 
 restoreProgress();
 setWizardPanel(0, { scroll: false });
+refreshWechatBindingStatus();
