@@ -51,6 +51,7 @@ const P0_REQUIRED_USER_SCOPES = [
   "base:record:read",
   "base:record:create",
   "base:record:update",
+  "docs:document.media:download",
   "base:workflow:create",
   "base:workflow:update"
 ];

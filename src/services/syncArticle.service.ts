@@ -1,5 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
-import os from "node:os";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import { appConfig } from "../config.js";
 import { HttpError } from "../errors/HttpError.js";
@@ -200,7 +199,11 @@ export class SyncArticleService {
 
     let tempDir: string | undefined;
     try {
-      tempDir = await mkdtemp(path.join(os.tmpdir(), "wechat-cover-"));
+      const tempRoot = path.join(process.cwd(), ".data");
+      await mkdir(tempRoot, {
+        recursive: true
+      });
+      tempDir = await mkdtemp(path.join(tempRoot, "wechat-cover-"));
       const coverImage = input.record.coverImage;
       if (!coverImage) {
         return this.writeFailure(input, "缺少封面附件 file_token", {
@@ -210,17 +213,18 @@ export class SyncArticleService {
       }
 
       const coverPath = path.join(tempDir, sanitizeFileName(coverImage.name));
+      const cliOutputPath = toCliRelativePath(coverPath);
       const wechatCredentials = await this.integrationConfig.getWechatCredentials(input.baseToken, input.tableId);
-      const downloadResult = await this.larkBase.downloadRecordAttachment({
+      await this.larkBase.downloadRecordAttachment({
         baseToken: input.baseToken,
         tableId: input.tableId,
         recordId: input.recordId,
         fileToken: coverImage.fileToken,
-        outputPath: coverPath
+        outputPath: cliOutputPath
       });
       const material = await this.wechat.uploadPermanentImage({
         credentials: wechatCredentials,
-        filePath: downloadResult.outputPath,
+        filePath: coverPath,
         fileName: coverImage.name
       });
       const draft = await this.wechat.addDraftArticle({
@@ -322,6 +326,16 @@ export class SyncArticleService {
 
 function sanitizeFileName(fileName: string) {
   return fileName.replace(/[<>:"/\\|?*\x00-\x1F]/g, "_") || "cover-image";
+}
+
+function toCliRelativePath(filePath: string) {
+  const relativePath = path.relative(process.cwd(), filePath);
+  if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
+    throw new HttpError(500, "附件下载路径必须位于项目目录内", "UNSAFE_ATTACHMENT_OUTPUT_PATH", {
+      filePath
+    });
+  }
+  return relativePath.split(path.sep).join("/");
 }
 
 function summarizeRecordRaw(raw: unknown) {
