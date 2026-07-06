@@ -16,7 +16,7 @@
             <span id="overviewStatus" class="status-badge active">配置中</span>
             <strong><span id="overviewPercent">0</span>%</strong>
           </div>
-          <small><span id="overviewCompletedCount">0</span> / 5 已完成 · 还有 <span id="overviewRemainingCount">5</span> 项</small>
+          <small><span id="overviewCompletedCount">0</span> / 6 已完成 · 还有 <span id="overviewRemainingCount">6</span> 项</small>
           <div class="progress-track" aria-hidden="true">
             <span id="overviewBar" style="width: 0%"></span>
           </div>
@@ -58,6 +58,13 @@
               <small>绑定当前工作台对应的公众号</small>
             </div>
           </li>
+          <li id="progressSkill" class="progress-item pending" data-wizard-target="3" tabindex="0">
+            <span class="progress-dot"></span>
+            <div>
+              <div class="step-row"><strong>Skill 模板</strong><span class="status-badge step-badge">待下载</span></div>
+              <small>公用与个性 Skill 压缩包</small>
+            </div>
+          </li>
         </ol>
       </aside>
 
@@ -66,7 +73,7 @@
       <div class="wizard-nav" aria-label="板块切换">
         <button id="wizardPrevBtn" class="secondary wizard-arrow" type="button" aria-label="上一个板块">←</button>
         <div class="wizard-nav-center">
-          <span id="wizardStepLabel" class="status-badge active">1 / 3</span>
+          <span id="wizardStepLabel" class="status-badge active">1 / 4</span>
           <strong id="wizardPanelTitle">飞书应用初始化</strong>
           <small id="wizardPanelHint">先完成创建新应用和用户授权</small>
         </div>
@@ -78,12 +85,40 @@
             <h2>1. 飞书应用初始化</h2>
           </div>
         </div>
+        <article class="todo-card cli-guide-card">
+          <div class="todo-title">
+            <span class="todo-dot active"></span>
+            <div>
+              <h3>一键安装与配置飞书 CLI</h3>
+              <p>创建飞书应用前，请先在本地电脑准备飞书 CLI。网页不能直接检测你的本地环境，请按下面任一方式完成。</p>
+            </div>
+          </div>
+          <div class="cli-guide-grid">
+            <section class="cli-guide-option">
+              <strong>方式一：手动安装</strong>
+              <p>在本地终端中输入以下命令完成安装：</p>
+              <div class="command-box">
+                <code id="manualInstallCommand">npx @larksuite/cli@latest install</code>
+                <button class="secondary copy-btn" type="button" data-copy-target="manualInstallCommand">复制</button>
+              </div>
+            </section>
+            <section class="cli-guide-option">
+              <strong>方式二：Agent 自动安装</strong>
+              <p>将以下引导语复制发送给你的 AI 工具，让它替你完成安装：</p>
+              <div class="command-box command-box-scroll">
+                <code id="agentInstallPrompt">帮我安装飞书 CLI：https://open.feishu.cn/document/no_class/mcp-archive/feishu-cli-installation-guide.md</code>
+                <button class="secondary copy-btn" type="button" data-copy-target="agentInstallPrompt">复制</button>
+              </div>
+            </section>
+          </div>
+        </article>
         <div class="setup-action-grid">
           <article class="todo-card setup-action-card">
             <div class="todo-title">
               <span id="createAppTodo" class="todo-dot pending"></span>
               <div>
                 <h3>创建新应用</h3>
+                <p>打开飞书创建链接后，请完成外部页面流程；回到本页后系统会自动检测结果。</p>
               </div>
             </div>
             <div class="actions todo-actions">
@@ -96,6 +131,7 @@
               <span id="authTodo" class="todo-dot pending"></span>
               <div>
                 <h3>用户授权</h3>
+                <p>打开飞书授权链接后，请完成外部页面流程；原配置页会自动检测授权完成。</p>
               </div>
             </div>
             <ul class="benefit-grid" aria-label="授权后系统会自动完成">
@@ -115,13 +151,13 @@
         <div class="card-header">
           <div>
             <h2>2. 多维表格初始化</h2>
-            <p>用户授权完成后，系统会自动创建多维表格、数据表和两条工作流。</p>
+            <p>用户授权完成后，进入本板块时系统会自动创建多维表格、数据表和两条工作流。</p>
           </div>
           <span class="status-badge pending">自动执行</span>
         </div>
         <div class="auto-panel">
           <strong>自动初始化进度</strong>
-          <p>这一部分不需要用户点击。完成用户授权后，系统会依次执行下面的步骤。</p>
+          <p>这一部分不需要用户点击。完成用户授权并进入本板块后，系统会依次执行下面的步骤。</p>
           <p>创建结果：<a id="workspaceLinkStatus" href="#" target="_blank" rel="noreferrer" hidden>打开多维表格</a><span id="workspaceTextStatus">等待用户授权完成</span></p>
         </div>
         <div class="automation-steps" aria-label="多维表格自动初始化进度">
@@ -154,6 +190,21 @@
             </div>
           </div>
         </div>
+        <article id="agentWorkspaceConfigCard" class="todo-card agent-config-card" hidden>
+          <div class="todo-title">
+            <span class="todo-dot done"></span>
+            <div>
+              <h3>复制给 Agent 的工作台配置</h3>
+              <p>把这段配置粘贴给能加载 Skill 且能调用飞书 CLI 的 Agent，让它后续按字段写入这张推送草稿表。</p>
+            </div>
+          </div>
+          <div class="agent-config-box">
+            <pre id="agentWorkspaceConfigText"></pre>
+          </div>
+          <div class="actions todo-actions">
+            <button class="secondary copy-btn" type="button" data-copy-target="agentWorkspaceConfigText">复制给 Agent</button>
+          </div>
+        </article>
       </section>
 
       <section class="card wizard-panel" data-wizard-panel="2" hidden>
@@ -197,6 +248,83 @@
         <div class="actions wechat-actions">
           <span id="wechatBindingStatus" class="field-help">请先完成多维表格初始化，再保存公众号信息。</span>
           <button id="saveWechatConfigBtn" type="button">保存公众号信息</button>
+        </div>
+      </section>
+
+      <section class="card wizard-panel" data-wizard-panel="3" hidden>
+        <div class="card-header">
+          <div>
+            <h2>4. Skill 模板下载</h2>
+            <p>下载固定 Skill 压缩包，上传到可加载 Skill 且可调用飞书 CLI 的 Agent 中使用。</p>
+          </div>
+          <span class="status-badge pending">可下载</span>
+        </div>
+        <div class="skill-template-section">
+          <div class="skill-template-group">
+            <div class="skill-template-heading">
+              <strong>公用 Skill</strong>
+              <p>被多个任务 Skill 反复引用的基础规则、定位和策略。</p>
+            </div>
+            <div class="skill-template-grid">
+              <article class="todo-card skill-card">
+                <div>
+                  <h3>wechat-brand-context</h3>
+                  <p>公众号品牌定位、内容边界和表达风格上下文，供其他任务 Skill 反复引用。</p>
+                </div>
+                <a class="button-link skill-download-link" href="/skill-templates/common/wechat-brand-context.zip" download>下载压缩包</a>
+              </article>
+            </div>
+          </div>
+          <div class="skill-template-group">
+            <div class="skill-template-heading">
+              <strong>个性 Skill</strong>
+              <p>面向标题、润色、排版、封面等具体生产环节的任务 Skill。</p>
+            </div>
+            <div class="skill-template-grid">
+              <article class="todo-card skill-card">
+                <div>
+                  <h3>wechat-title-generator</h3>
+                  <p>结合品牌上下文和内容目标生成公众号标题候选。</p>
+                </div>
+                <a class="button-link skill-download-link" href="/skill-templates/personal/wechat-title-generator.zip" download>下载压缩包</a>
+              </article>
+              <article class="todo-card skill-card">
+                <div>
+                  <h3>wechat-content-polisher</h3>
+                  <p>在不改变作者原始逻辑的前提下，对公众号初稿做 GEO 友好润色。</p>
+                </div>
+                <a class="button-link skill-download-link" href="/skill-templates/personal/wechat-content-polisher.zip" download>下载压缩包</a>
+              </article>
+              <article class="todo-card skill-card">
+                <div>
+                  <h3>wechat-html-css-layout</h3>
+                  <p>生成适合公众号正文的 HTML 片段，作为自动化推送前置内容。</p>
+                </div>
+                <a class="button-link skill-download-link" href="/skill-templates/personal/wechat-html-css-layout.zip" download>下载压缩包</a>
+              </article>
+              <article class="todo-card skill-card">
+                <div>
+                  <h3>wechat-geo-summary</h3>
+                  <p>面向 AI 搜索友好目标，提炼文章摘要、核心问题和 GEO 结构。</p>
+                </div>
+                <a class="button-link skill-download-link" href="/skill-templates/personal/wechat-geo-summary.zip" download>下载压缩包</a>
+              </article>
+              <article class="todo-card skill-card">
+                <div>
+                  <h3>wechat-fact-checker</h3>
+                  <p>检查事实准确性、专业严谨度、平台兼容性和安全风险。</p>
+                </div>
+                <a class="button-link skill-download-link" href="/skill-templates/personal/wechat-fact-checker.zip" download>下载压缩包</a>
+              </article>
+              <article class="todo-card skill-card">
+                <div>
+                  <h3>wechat-publish-checker</h3>
+                  <p>在发布前对公众号文章进行完整性、规范性和风险检查。</p>
+                </div>
+                <a class="button-link skill-download-link" href="/skill-templates/personal/wechat-publish-checker.zip" download>下载压缩包</a>
+              </article>
+            </div>
+          </div>
         </div>
       </section>
       </div>

@@ -10,6 +10,7 @@ import { feishuWebhookRouter } from "./routes/feishuWebhook.routes.js";
 import { healthRouter } from "./routes/health.routes.js";
 import { larkBaseRouter } from "./routes/larkBase.routes.js";
 import { larkSharedRouter } from "./routes/larkShared.routes.js";
+import { skillTemplateRouter } from "./routes/skillTemplate.routes.js";
 import { systemRouter } from "./routes/system.routes.js";
 import { templateRouter } from "./routes/template.routes.js";
 import { logger } from "./utils/logger.js";
@@ -35,6 +36,7 @@ export function createApp() {
   app.use("/api/lark/base", larkBaseRouter);
   app.use("/api/integrations", integrationConfigRouter);
   app.use("/api/templates", templateRouter);
+  app.use("/skill-templates", skillTemplateRouter);
   app.use("/api/webhooks/feishu", feishuWebhookRouter);
 
   app.use((_req, res) => {

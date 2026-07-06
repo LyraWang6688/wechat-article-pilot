@@ -126,9 +126,10 @@ h3 {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
   gap: 20px;
-  align-items: start;
+  align-items: stretch;
   width: min(1280px, calc(100% - 32px));
-  margin: 20px auto 56px;
+  min-height: calc(100vh - 40px);
+  margin: 20px auto;
 }
 
 .progress-track {
@@ -295,6 +296,8 @@ h3 {
   top: 18px;
   display: grid;
   gap: 16px;
+  align-self: start;
+  min-height: calc(100vh - 40px);
   padding: 20px;
   border: 1px solid var(--border);
   border-radius: 22px;
@@ -578,6 +581,70 @@ h3 {
   margin-bottom: 12px;
 }
 
+.cli-guide-card {
+  margin-bottom: 10px;
+  border-color: var(--color-primary-border);
+  background: linear-gradient(180deg, #ffffff 0%, var(--color-primary-soft) 100%);
+}
+
+.cli-guide-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.cli-guide-option {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.cli-guide-option strong {
+  color: var(--color-text-main);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
+  font-weight: var(--font-weight-semibold);
+}
+
+.cli-guide-option p {
+  margin-bottom: 0;
+}
+
+.command-box {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface-muted);
+}
+
+.command-box code {
+  overflow: hidden;
+  color: var(--color-text-main);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.command-box-scroll code {
+  overflow-x: auto;
+  text-overflow: clip;
+}
+
+.copy-btn {
+  min-width: 58px;
+  padding: 7px 10px;
+}
+
 .setup-action-grid {
   display: grid;
   grid-template-rows: minmax(96px, 0.55fr) minmax(220px, 1.45fr);
@@ -660,6 +727,100 @@ h3 {
 .automation-step.warn {
   border-color: var(--color-warning-border);
   background: var(--color-warning-soft);
+}
+
+.agent-config-card {
+  margin-top: 12px;
+  border-color: var(--color-success-border);
+  background: var(--color-success-soft);
+}
+
+.agent-config-box {
+  max-height: 220px;
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid var(--color-success-border);
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.agent-config-box pre {
+  margin: 0;
+  color: var(--color-text-main);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-base);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.skill-template-section {
+  display: grid;
+  gap: 16px;
+}
+
+.skill-template-group {
+  display: grid;
+  gap: 10px;
+}
+
+.skill-template-heading {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-primary-border);
+  border-radius: 14px;
+  background: var(--color-primary-soft);
+}
+
+.skill-template-heading strong {
+  color: var(--color-text-main);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
+  font-weight: var(--font-weight-semibold);
+}
+
+.skill-template-heading p {
+  margin-bottom: 0;
+}
+
+.skill-template-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.skill-card {
+  align-content: space-between;
+  min-height: 148px;
+}
+
+.skill-card p {
+  margin-bottom: 0;
+}
+
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  padding: 8px 13px;
+  border-radius: 10px;
+  background: var(--color-action);
+  color: #ffffff;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+  transition: background 0.15s ease;
+}
+
+.button-link:hover {
+  background: var(--color-action-hover);
+}
+
+.skill-download-link {
+  justify-self: flex-start;
 }
 
 .auto-panel {
@@ -894,10 +1055,12 @@ pre {
 
   .layout {
     grid-template-columns: 1fr;
+    min-height: auto;
   }
 
   .progress-panel {
     position: static;
+    min-height: auto;
   }
 
   .wizard-shell {
@@ -920,6 +1083,11 @@ pre {
 
   .two,
   .three {
+    grid-template-columns: 1fr;
+  }
+
+  .cli-guide-grid,
+  .skill-template-grid {
     grid-template-columns: 1fr;
   }
 

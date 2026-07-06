@@ -11,6 +11,7 @@ let configInitPollTimer = null;
 let authCompletePollTimer = null;
 let currentWizardPanel = 0;
 let isAuthCompleting = false;
+let isAuthReadyForBitable = false;
 
 const TODO_PROGRESS_MAP = {
   createAppTodo: "progressCreateApp",
@@ -19,7 +20,14 @@ const TODO_PROGRESS_MAP = {
   wechatSecretTodo: "progressWechat"
 };
 
-const PROGRESS_STEP_IDS = ["progressCreateApp", "progressAuth", "progressTable", "progressWorkflow", "progressWechat"];
+const PROGRESS_STEP_IDS = [
+  "progressCreateApp",
+  "progressAuth",
+  "progressTable",
+  "progressWorkflow",
+  "progressWechat",
+  "progressSkill"
+];
 const WIZARD_PANELS = [
   {
     title: "飞书应用初始化",
@@ -35,6 +43,11 @@ const WIZARD_PANELS = [
     title: "微信公众号信息",
     hint: "先预留公众号 AppID 和 AppSecret",
     progressIds: ["progressWechat"]
+  },
+  {
+    title: "Skill 模板下载",
+    hint: "下载公用和个性 Skill 压缩包",
+    progressIds: ["progressSkill"]
   }
 ];
 
@@ -153,6 +166,41 @@ function setBusy(button, busy) {
 
 function openExternalLink(url) {
   window.open(url, "_blank", "noopener,noreferrer");
+}
+
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand("copy");
+  textarea.remove();
+}
+
+async function copyElementText(button) {
+  const target = $(button.dataset.copyTarget || "");
+  const text = target?.textContent?.trim();
+  if (!text) {
+    return;
+  }
+  const originalText = button.textContent;
+  try {
+    await copyTextToClipboard(text);
+    button.textContent = "已复制";
+  } catch (_error) {
+    button.textContent = "复制失败";
+  } finally {
+    setTimeout(() => {
+      button.textContent = originalText;
+    }, 1400);
+  }
 }
 
 function setLinkButton(buttonId, url, label, fallbackLabel) {
@@ -323,6 +371,7 @@ function setWizardPanel(index, options = {}) {
   if (options.scroll !== false) {
     document.querySelector(".wizard-shell")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
+  maybeStartBitableInitialization();
 }
 
 function updateWizardNav() {
@@ -385,8 +434,63 @@ function getWebhookUrl() {
   return `${window.location.origin}/api/webhooks/feishu/base-record-sync`;
 }
 
+function buildAgentWorkspaceConfig(state = getWorkspaceState()) {
+  if (!state.baseToken || !state.tableId) {
+    return "";
+  }
+  return `这是我的公众号推文工作台配置。请后续所有公众号推文内容都写入这个飞书多维表格，并严格按字段规范输出。
+
+【工作台信息】
+baseName: ${state.baseName || DEFAULT_BASE_NAME}
+baseToken: ${state.baseToken}
+baseUrl: ${state.baseUrl || "未返回，可在配置页打开多维表格"}
+tableName: ${state.tableName || DEFAULT_TABLE_NAME}
+tableId: ${state.tableId}
+webhookUrl: ${getWebhookUrl()}
+
+【Agent 使用前提】
+你需要能加载本项目提供的 Skill，并能调用飞书 CLI 读写飞书多维表格。
+
+【写入字段规范】
+title: 公众号图文标题，必填，建议不超过 32 字。
+author: 作者，可选。
+digest: 摘要，可选，建议不超过 128 字。
+column: 栏目，可选，使用表格已有选项。
+content_markdown: Markdown 正文，用于留档和二次编辑。
+content_html: 微信公众号图文正文 HTML，必填。
+cover_image_url: 封面图片附件，必填，请上传为飞书多维表格附件/图片字段。
+status: 写入完成并确认可推送时设置为 ready_to_upload。
+
+【推送规则】
+当 status = ready_to_upload 时，飞书工作流会请求后端 webhook。
+后端会读取这条记录，下载 cover_image_url 的附件封面，上传为微信永久图片素材，然后创建微信公众号图文草稿。
+
+【后端写回字段】
+wechat_draft_media_id: 微信草稿 media_id。
+wechat_upload_result: 同步成功或失败详情。
+missing_fields: 必填字段缺失信息。
+warning_fields: 非阻断警告。
+status: 成功后为 uploaded_to_wechat，失败后为 failed。
+
+【内容目标】
+请优先生成对 AI 搜索友好的 GEO 内容，并保证 content_html 可作为后续自动推送的前置内容。`;
+}
+
+function updateAgentWorkspaceConfig(state = getWorkspaceState()) {
+  const card = $("agentWorkspaceConfigCard");
+  const text = $("agentWorkspaceConfigText");
+  if (!card || !text) {
+    return;
+  }
+  const configText = buildAgentWorkspaceConfig(state);
+  card.hidden = !configText;
+  text.textContent = configText;
+  requestAnimationFrame(syncWizardHeight);
+}
+
 function saveWorkspaceState(state) {
   sessionStorage.setItem(WORKSPACE_STATE_KEY, JSON.stringify(state));
+  updateAgentWorkspaceConfig(state);
   refreshWechatBindingStatus();
 }
 
@@ -480,7 +584,6 @@ async function runBitableInitialization() {
     return;
   }
   isBitableInitializing = true;
-  setWizardPanel(1);
   resetBitableAutomationSteps();
   setStepStatus("progressTable", "active");
   setStepStatus("progressWorkflow", "pending");
@@ -595,6 +698,19 @@ async function runBitableInitialization() {
   }
 }
 
+function maybeStartBitableInitialization() {
+  const workspace = getWorkspaceState();
+  if (
+    currentWizardPanel !== 1 ||
+    !isAuthReadyForBitable ||
+    isBitableInitializing ||
+    (workspace.baseToken && workspace.tableId)
+  ) {
+    return;
+  }
+  void runBitableInitialization();
+}
+
 function setDeviceCode(value) {
   if (value) {
     sessionStorage.setItem(AUTH_DEVICE_CODE_KEY, value);
@@ -633,8 +749,14 @@ function pollAuthCompletionStatus(sessionId, attempt = 0) {
         }
         showResult("完成用户授权", payload);
         stopAuthCompletePolling();
-        setWizardPanel(1);
-        await runBitableInitialization();
+        isAuthReadyForBitable = true;
+        showResult("用户授权已完成", {
+          ok: true,
+          data: {
+            message: "授权已完成。请进入第二板块，系统会自动创建多维表格、数据表和工作流。"
+          }
+        });
+        maybeStartBitableInitialization();
         return;
       }
       if (payload.data?.status === "failed" || payload.data?.status === "not_found") {
@@ -686,6 +808,7 @@ function restoreProgress() {
   setDeviceCode("");
   setConfigLink("");
   setAuthLink("");
+  isAuthReadyForBitable = Boolean($("progressAuth")?.classList.contains("done"));
   updateWorkspaceLink();
   updateWechatTodos();
   updateProgressOverview();
@@ -737,6 +860,10 @@ function setWechatBindingStatus(message, status = "pending") {
   } else if (status === "warn") {
     setStepStatus("progressWechat", "warn");
   }
+}
+
+function markSkillTemplateDownloaded() {
+  setStepStatus("progressSkill", "done");
 }
 
 async function refreshWechatBindingStatus() {
@@ -861,6 +988,12 @@ $("saveWechatConfigBtn").addEventListener("click", (event) => saveWechatConfig(e
 
 $("wizardPrevBtn").addEventListener("click", () => setWizardPanel(currentWizardPanel - 1));
 $("wizardNextBtn").addEventListener("click", () => setWizardPanel(currentWizardPanel + 1));
+document.querySelectorAll("[data-copy-target]").forEach((button) => {
+  button.addEventListener("click", () => copyElementText(button));
+});
+document.querySelectorAll(".skill-download-link").forEach((link) => {
+  link.addEventListener("click", markSkillTemplateDownloaded);
+});
 document.querySelectorAll("[data-wizard-target]").forEach((item) => {
   const openTargetPanel = () => setWizardPanel(Number(item.dataset.wizardTarget || 0));
   item.addEventListener("click", openTargetPanel);
@@ -875,4 +1008,5 @@ window.addEventListener("resize", syncWizardHeight);
 
 restoreProgress();
 setWizardPanel(0, { scroll: false });
+updateAgentWorkspaceConfig();
 refreshWechatBindingStatus();
